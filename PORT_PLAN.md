@@ -45,7 +45,7 @@ The scheduled runner picks the lowest unchecked phase, completes it, and ticks t
 
 ### Phase 0 — Bootstrap
 
-- [ ] **P0.** Initialize the repo. `git init -b main` if missing. Add `.gitignore` (Python defaults + `.venv`, `*.npz`, `checkpoints/`, `third_party/`). Run `uv init --package --name mugo`. Add deps: `uv add mlx numpy pytest pytest-asyncio ruff mypy rich tyro`. Add upstream as a submodule at `third_party/autogo` (depth=1, but submodule semantics — use `git submodule add` not a deep clone). Confirm `uv run python -c "import mlx.core as mx; print(mx.default_device(), mx.metal.is_available())"` prints `gpu` and `True`. Commit `phase 0: bootstrap mugo skeleton`. Tick this box and stop.
+- [x] **P0.** Initialize the repo. `git init -b main` if missing. Add `.gitignore` (Python defaults + `.venv`, `*.npz`, `checkpoints/`, `third_party/`). Run `uv init --package --name mugo`. Add deps: `uv add mlx numpy pytest pytest-asyncio ruff mypy rich tyro`. Add upstream as a submodule at `third_party/autogo` (depth=1, but submodule semantics — use `git submodule add` not a deep clone). Confirm `uv run python -c "import mlx.core as mx; print(mx.default_device(), mx.metal.is_available())"` prints `gpu` and `True`. Commit `phase 0: bootstrap mugo skeleton`. Tick this box and stop.
 
 ### Phase 1 — The model, in isolation
 
