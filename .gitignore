@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# uv / virtualenvs
+.venv/
+.uv-cache/
+
+# Data and artifacts
+*.npz
+*.npy
+*.safetensors
+checkpoints/
+
+# Vendor / submodule build outputs
+third_party/*/build/
+third_party/*/.venv/
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
