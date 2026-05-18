@@ -54,7 +54,7 @@ The scheduled runner picks the lowest unchecked phase, completes it, and ticks t
 
 ### Phase 2 — Loss + a single training step
 
-- [ ] **P2a.** Add `src/mugo/loss.py` with `compute_dense_loss(model, board_BHWC, mask_BHW, mcts_policy_BC, winner_B, is_teacher_B) -> (total, policy, value)`. Policy: per-sample cross entropy against the dense MCTS visit distribution, multiplied by `is_teacher`, normalized by `is_teacher.sum().clip(min=1)`. Value: `binary_cross_entropy(value_B, winner_B, with_logits=True)` averaged over all samples. Return all three for logging.
+- [x] **P2a.** Add `src/mugo/loss.py` with `compute_dense_loss(model, board_BHWC, mask_BHW, mcts_policy_BC, winner_B, is_teacher_B) -> (total, policy, value)`. Policy: per-sample cross entropy against the dense MCTS visit distribution, multiplied by `is_teacher`, normalized by `is_teacher.sum().clip(min=1)`. Value: `binary_cross_entropy(value_B, winner_B, with_logits=True)` averaged over all samples. Return all three for logging.
 - [ ] **P2b.** Add `tests/test_one_step.py`: instantiate model, draw synthetic batch (B=32), run one forward+backward via `nn.value_and_grad(model, lambda m, *a: compute_dense_loss(m, *a)[0])`, step `AdamW(lr=1e-3, weight_decay=5e-3)`, assert loss after one step ≤ loss before for the *same* batch (overfit-one-batch sanity). Commit `phase 2: loss and grad step`.
 
 ### Phase 3 — Dataset + dataloader
