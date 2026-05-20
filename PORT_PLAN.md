@@ -64,7 +64,7 @@ The scheduled runner picks the lowest unchecked phase, completes it, and ticks t
 
 ### Phase 4 — Synthetic-data training run
 
-- [ ] **P4.** Add `scripts/overfit_synthetic.py`: generate ~1000 synthetic positions (random boards, one-hot policy targets pointed at a deterministic function of the board, e.g. `argmax(board.sum(axis=-1))`, winners as `sign(black_count - white_count)`), train `SizeInvariantGoResNet` for 500 steps, assert final policy accuracy ≥ 80% on the training set. This is the "the recipe wires together" milestone. Also save and reload a checkpoint via `mx.save_safetensors` / `mx.load`. Commit `phase 4: overfit synthetic data end-to-end`.
+- [x] **P4.** Add `scripts/overfit_synthetic.py`: generate ~1000 synthetic positions (random boards, one-hot policy targets pointed at a deterministic function of the board, e.g. `argmax(board.sum(axis=-1))`, winners as `sign(black_count - white_count)`), train `SizeInvariantGoResNet` for 500 steps, assert final policy accuracy ≥ 80% on the training set. This is the "the recipe wires together" milestone. Also save and reload a checkpoint via `mx.save_safetensors` / `mx.load`. Commit `phase 4: overfit synthetic data end-to-end`.
 
 ### Phase 5 — Inference wrapper
 
