@@ -107,7 +107,7 @@ The scheduled runner picks the lowest unchecked phase, completes it, and ticks t
 
 ### Phase 13 — Free-Threaded Python 3.13 (nogil)
 
-- [ ] **P13.** Remove Global Interpreter Lock (GIL) serialization completely. Setup a free-threaded virtual environment using `uv venv --python 3.13t` and build/link the C++ MCTS extension against the `3.13-nogil` runtime. Verify concurrent CPU search and GPU evaluation run parallel without thread serialization, maximizing CPU cores and GPU utilization.
+- [x] **P13.** Remove Global Interpreter Lock (GIL) serialization completely. Setup a free-threaded virtual environment using `uv venv --python 3.13t` and build/link the C++ MCTS extension against the `3.13-nogil` runtime. Verify concurrent CPU search and GPU evaluation run parallel without thread serialization, maximizing CPU cores and GPU utilization.
 
 ## Out of scope for this plan
 
