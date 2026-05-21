@@ -103,7 +103,7 @@ The scheduled runner picks the lowest unchecked phase, completes it, and ticks t
 
 ### Phase 12 — FFI C++ Batching
 
-- [ ] **P12.** Implement Native C++ Batching to minimize C++/Python FFI boundary time. Update the pybind11 extension (`alpha_go_cpp.MCTSTree`) to support a thread-safe leaf evaluation request queue.aggregate requests into batch size `B` or trigger via timeout (1ms), make a single GIL-free FFI call to Python evaluator with shape `(B, 9, 9, 3)`, evaluate in a single forward pass on MLX, and distribute the predictions back to the waiting threads. Show benchmark of 5x+ throughput improvement in simulations per second.
+- [x] **P12.** Implement Native C++ Batching to minimize C++/Python FFI boundary time. Update the pybind11 extension (`alpha_go_cpp.MCTSTree`) to support a thread-safe leaf evaluation request queue.aggregate requests into batch size `B` or trigger via timeout (1ms), make a single GIL-free FFI call to Python evaluator with shape `(B, 9, 9, 3)`, evaluate in a single forward pass on MLX, and distribute the predictions back to the waiting threads. Show benchmark of 5x+ throughput improvement in simulations per second.
 
 ### Phase 13 — Free-Threaded Python 3.13 (nogil)
 
