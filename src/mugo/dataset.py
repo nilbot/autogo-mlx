@@ -243,7 +243,14 @@ class GoDataset:
         if w.ndim == 0:
             game_winner = int(w)
             return int(game_winner == current_player)
-        return int(w[local])
+        else:
+            unique_vals = set(np.unique(w))
+            is_self_perspective = (unique_vals.issubset({0, 1}) and (0 in unique_vals or len(w) <= 1))
+            if is_self_perspective:
+                return int(w[local])
+            else:
+                game_winner = int(w[local])
+                return int(game_winner == current_player)
 
     def _policy_for_position(
         self, data: NPZDict, local: int, h: int, w: int

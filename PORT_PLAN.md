@@ -85,13 +85,13 @@ The scheduled runner picks the lowest unchecked phase, completes it, and ticks t
 
 ### Phase 8 — One real training iteration
 
-- [ ] **P8a.** Add `experiments/000_smoke/`. Mirror the upstream layout: `train.py`, `collect.py`, `run_iteration.sh`, `report.md`. Collection produces ~200 9×9 games via `play_game` with `n_simulations=64`; training consumes them with batch size 64, runs for 300 steps, dumps a checkpoint into `experiments/000_smoke/checkpoints/iter1.safetensors`. `run_iteration.sh 0 1` should complete cold in under 30 minutes on an M-series laptop.
-- [ ] **P8b.** Add `experiments/000_smoke/report.md` with: iteration loss curve (matplotlib if it's installed; otherwise CSV + one-line summary), policy accuracy at end, time per phase, GPU memory peak (`mx.metal.get_peak_memory()`). Commit `phase 8: first MLX training iteration`.
+- [x] **P8a.** Add `experiments/000_smoke/`. Mirror the upstream layout: `train.py`, `collect.py`, `run_iteration.sh`, `report.md`. Collection produces ~200 9×9 games via `play_game` with `n_simulations=64`; training consumes them with batch size 64, runs for 300 steps, dumps a checkpoint into `experiments/000_smoke/checkpoints/iter1.safetensors`. `run_iteration.sh 0 1` should complete cold in under 30 minutes on an M-series laptop.
+- [x] **P8b.** Add `experiments/000_smoke/report.md` with: iteration loss curve (matplotlib if it's installed; otherwise CSV + one-line summary), policy accuracy at end, time per phase, GPU memory peak (`mx.metal.get_peak_memory()`). Commit `phase 8: first MLX training iteration`.
 
 ### Phase 9 — Parity check against upstream
 
-- [ ] **P9a.** Add `scripts/check_parity.py`: load an upstream PyTorch checkpoint (if available — see note), translate weights into the MLX `SizeInvariantGoResNet`, run both on the same fixed input (set seed everywhere), assert max abs error on policy logits ≤ 1e-3 and on value ≤ 1e-3. Caveat: BN running stats need to be copied across, watch out for the NCHW↔NHWC permutation on conv kernels (`weight_torch[C_out, C_in, H, W] -> weight_mlx[C_out, H, W, C_in]`).
-- [ ] **P9b.** If a parity checkpoint is not handy, downgrade to "same architecture, same random init seeded both ways, same first batch — losses should match to 1e-2". Document the gap in `report.md`. Commit `phase 9: parity sanity check`.
+- [x] **P9a.** Add `scripts/check_parity.py`: load an upstream PyTorch checkpoint (if available — see note), translate weights into the MLX `SizeInvariantGoResNet`, run both on the same fixed input (set seed everywhere), assert max abs error on policy logits ≤ 1e-3 and on value ≤ 1e-3. Caveat: BN running stats need to be copied across, watch out for the NCHW↔NHWC permutation on conv kernels (`weight_torch[C_out, C_in, H, W] -> weight_mlx[C_out, H, W, C_in]`).
+- [x] **P9b.** If a parity checkpoint is not handy, downgrade to "same architecture, same random init seeded both ways, same first batch — losses should match to 1e-2". Document the gap in `report.md`. Commit `phase 9: parity sanity check`.
 
 ### Phase 10 — Multi-iteration training run
 
