@@ -1,19 +1,73 @@
-# mugo
+# Mugo — MLX Port of AutoGo (nilbot/autogo-mlx)
 
-MLX port of [autogo](https://github.com/ericjang/autogo) — Eric Jang's AlphaZero-style
-Go training pipeline — targeted at a single Apple Silicon laptop.
+Mugo is a high-performance, native MLX port of [AutoGo](https://github.com/ericjang/autogo) — Eric Jang's AlphaZero-style Go training pipeline — specifically optimized for single-device training on Apple Silicon MacBooks.
 
-Reference upstream lives at `third_party/autogo/` (git submodule, read-only).
-Roadmap and per-phase contract: [`PORT_PLAN.md`](PORT_PLAN.md).
-Project rationale: [`WRITEUP.md`](WRITEUP.md).
+By leveraging Apple Silicon's unified memory architecture, Metal-accelerated GPU computations, thread-safe C++ MCTS evaluation batching, and Global Interpreter Lock (GIL) free execution with Free-Threaded Python 3.13, Mugo provides a highly efficient and fast sandbox for reinforcement learning on a local machine.
 
-## Quick start
+---
 
+## 📖 Key Documentation
+
+*   **[`SUMMARY.md`](SUMMARY.md):** Deep technical write-up detailing the PyTorch to MLX translation, layout adaptations (NHWC), FFI batching optimizations, free-threaded nogil compatibility, and reinforcement learning convergence results. **(Read this first!)**
+*   **[`PORT_PLAN.md`](PORT_PLAN.md):** The living, 14-phase implementation plan, all fully checked off.
+*   **[`WRITEUP.md`](WRITEUP.md):** Rationale and orientation document analyzing the design philosophy of the AutoGo system.
+
+---
+
+## ⚡ Quick Start
+
+### 1. Prerequisites
+Ensure you have a Mac running Apple Silicon and have `uv` installed.
+
+### 2. Synchronize Dependencies
+Install the Python toolchain and virtual environment:
 ```sh
 uv sync
+```
+
+### 3. Verify MLX and GPU Availability
+Verify that MLX can access your Apple Silicon GPU:
+```sh
 uv run python -c "import mlx.core as mx; print(mx.default_device(), mx.metal.is_available())"
-# => Device(gpu, 0) True   (Apple Silicon required)
+# Output should be: Device(gpu, 0) True
+```
+
+### 4. Build the C++ Go & MCTS Extension
+Compile the high-performance C++ pybind11 Go engine and MCTS core:
+```sh
+./scripts/build_cpp.sh
+```
+
+### 5. Run the Test Suite
+Confirm that the entire pipeline is functionally correct and passes all 14 tests:
+```sh
 uv run pytest
 ```
 
-Every meaningful compute path runs on `mx.gpu`.
+---
+
+## 🚀 Running Experiments
+
+### Smoke Run (1 Iteration)
+To run a fast, end-to-end self-play and training cycle (~30 mins):
+```sh
+cd experiments/000_smoke
+./run_iteration.sh 0 1
+```
+
+### Reinforcement Learning from Scratch
+To kick off a multi-iteration self-play RL training loop from scratch:
+```sh
+cd experiments/001_train_from_scratch
+./run_iteration.sh 0 5
+```
+
+---
+
+## 🛠️ Repository Structure
+
+*   `src/mugo/` - Core Python package implementing the MLX models, loss, custom dataset, and game execution.
+*   `scripts/` - Utilities for C++ compiling, supervised SGF pre-training, parity verification, and report tracking.
+*   `tests/` - Robust test suite validating every critical compute boundary.
+*   `experiments/` - Configs, scripts, and logs tracking active training runs.
+*   `third_party/autogo/` - Read-only git submodule of upstream PyTorch code with customized local patching for macOS systems.
