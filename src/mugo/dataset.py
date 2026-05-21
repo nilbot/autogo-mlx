@@ -52,6 +52,7 @@ from __future__ import annotations
 import json
 from collections.abc import Iterator, Sequence
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -110,8 +111,8 @@ def _d4_policy(policy_BA: np.ndarray, sym: int, board_size: int) -> np.ndarray:
     b = policy_BA.shape[0]
     spatial = board_size * board_size
     pos = policy_BA[..., :spatial].reshape(b, board_size, board_size)
-    pos = _d4_apply(pos, sym).reshape(b, spatial)
-    return np.concatenate([pos, policy_BA[..., spatial:]], axis=-1)
+    pos_flat = _d4_apply(pos, sym).reshape(b, spatial)
+    return np.concatenate([pos_flat, policy_BA[..., spatial:]], axis=-1)
 
 
 class GoDataset:
@@ -224,7 +225,7 @@ class GoDataset:
             bool(data["is_teacher"][local]) if "is_teacher" in data else False
         )
 
-        sample: dict[str, np.ndarray | bool | int] = {
+        sample: dict[str, Any] = {
             "board": board,
             "mask": mask,
             "winner": np.int8(winner),

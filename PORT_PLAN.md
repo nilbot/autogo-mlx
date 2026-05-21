@@ -74,8 +74,8 @@ The scheduled runner picks the lowest unchecked phase, completes it, and ticks t
 
 ### Phase 6 — Build and link the upstream C++ MCTS on macOS
 
-- [ ] **P6a.** Verify `third_party/autogo/src/alpha_go/cpp/` builds on macOS via its own CMake. From the mugo repo, write `scripts/build_cpp.sh` that cd's into the submodule, runs `cmake -S . -B build -DPython_EXECUTABLE=$(uv run which python)`, and `cmake --build build -j`. If it fails on Apple Silicon, fix it (most likely culprits: hardcoded `-march=native`, OpenMP linkage, libc++ vs libstdc++ — patch and document). Resulting `.so` should be importable as `alpha_go_cpp` after `sys.path.append(...)`.
-- [ ] **P6b.** Add `src/mugo/cpp_bridge.py` that handles the `sys.path` injection and re-exports `alpha_go_cpp.GoBoard`, `alpha_go_cpp.MCTSTree`. `tests/test_cpp_bridge.py` plays a 5-move scripted game on `GoBoard(9, komi=7.5)` and asserts `to_numpy()` shape and `score()` returns a float. Commit `phase 6: vendor C++ MCTS for macOS`.
+- [x] **P6a.** Verify `third_party/autogo/src/alpha_go/cpp/` builds on macOS via its own CMake. From the mugo repo, write `scripts/build_cpp.sh` that cd's into the submodule, runs `cmake -S . -B build -DPython_EXECUTABLE=$(uv run which python)`, and `cmake --build build -j`. If it fails on Apple Silicon, fix it (most likely culprits: hardcoded `-march=native`, OpenMP linkage, libc++ vs libstdc++ — patch and document). Resulting `.so` should be importable as `alpha_go_cpp` after `sys.path.append(...)`.
+- [x] **P6b.** Add `src/mugo/cpp_bridge.py` that handles the `sys.path` injection and re-exports `alpha_go_cpp.GoBoard`, `alpha_go_cpp.MCTSTree`. `tests/test_cpp_bridge.py` plays a 5-move scripted game on `GoBoard(9, komi=7.5)` and asserts `to_numpy()` shape and `score()` returns a float. Commit `phase 6: vendor C++ MCTS for macOS`.
 
 ### Phase 7 — Self-play with MLX evaluator + C++ MCTS
 

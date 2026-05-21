@@ -25,6 +25,7 @@ Shape suffix convention (cf. upstream CLAUDE.md):
 from __future__ import annotations
 
 import math
+from typing import Callable
 
 import mlx.core as mx
 import mlx.nn as nn
@@ -110,7 +111,7 @@ class MaskedResBlock(nn.Module):
     """
 
     def __init__(self, channels: int,
-                 norm_cls: type[nn.Module] = MaskedGroupNorm2d,
+                 norm_cls: Callable[[int], nn.Module] = MaskedGroupNorm2d,
                  use_se: bool = False, se_reduction: int = 8) -> None:
         super().__init__()
         self.conv1 = nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=False)
