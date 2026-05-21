@@ -95,7 +95,7 @@ The scheduled runner picks the lowest unchecked phase, completes it, and ticks t
 
 ### Phase 10 — Multi-iteration training run
 
-- [ ] **P10.** Add `experiments/001_train_from_scratch/` driven by `run_iteration.sh 0 5` (five collect+train cycles). Bootstrap iter-0 with random-vs-random games (`pre_collect_random.py` mirroring upstream). Each iteration: collect 1000 games on a single MLX-driven worker, train 2000 steps, swap the new checkpoint in. Final eval: 100 games against the iter-0 random agent — target win rate ≥ 80%. If we don't hit it, the report has to say why. Commit `phase 10: 5-iter training run + eval`.
+- [x] **P10.** Add `experiments/001_train_from_scratch/` driven by `run_iteration.sh 0 5` (five collect+train cycles). Bootstrap iter-0 with random-vs-random games (`pre_collect_random.py` mirroring upstream). Each iteration: collect 1000 games on a single MLX-driven worker, train 2000 steps, swap the new checkpoint in. Final eval: 100 games against the iter-0 random agent — target win rate ≥ 80%. If we don't hit it, the report has to say why. Commit `phase 10: 5-iter training run + eval`.
 
 ### Phase 11 — KataGo Distillation / SGF Bootstrapping
 
