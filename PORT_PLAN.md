@@ -79,9 +79,9 @@ The scheduled runner picks the lowest unchecked phase, completes it, and ticks t
 
 ### Phase 7 — Self-play with MLX evaluator + C++ MCTS
 
-- [ ] **P7a.** Add `src/mugo/agents/nn_mcts.py` with `MLXNNMCTSAgent(evaluator: MLXEvaluator | BatchedMLXEvaluator, n_simulations: int, c_puct: float, dirichlet_alpha: float, temperature: float)`. Internally constructs an `alpha_go_cpp.MCTSTree`, drives `run_simulations_batched` with a Python callback that defers to the evaluator. `select_move(board, legal_actions) -> action_index`.
-- [ ] **P7b.** Add `src/mugo/gameplay.py::play_game(black_agent, white_agent, board_size=9, max_moves=500, seed=None)` returning a `GameRecord` matching the upstream NPZ schema (boards before each move, moves, mcts_policy from the agent's root visits if available, winner, result string, termination reason).
-- [ ] **P7c.** `tests/test_selfplay_smoke.py`: load a randomly-initialized MLX model, play one 9×9 game between two `MLXNNMCTSAgent`s with `n_simulations=16`, assert it terminates and the resulting NPZ round-trips through `dataset.py`. Commit `phase 7: end-to-end self-play smoke`.
+- [x] **P7a.** Add `src/mugo/agents/nn_mcts.py` with `MLXNNMCTSAgent(evaluator: MLXEvaluator | BatchedMLXEvaluator, n_simulations: int, c_puct: float, dirichlet_alpha: float, temperature: float)`. Internally constructs an `alpha_go_cpp.MCTSTree`, drives `run_simulations_batched` with a Python callback that defers to the evaluator. `select_move(board, legal_actions) -> action_index`.
+- [x] **P7b.** Add `src/mugo/gameplay.py::play_game(black_agent, white_agent, board_size=9, max_moves=500, seed=None)` returning a `GameRecord` matching the upstream NPZ schema (boards before each move, moves, mcts_policy from the agent's root visits if available, winner, result string, termination reason).
+- [x] **P7c.** `tests/test_selfplay_smoke.py`: load a randomly-initialized MLX model, play one 9×9 game between two `MLXNNMCTSAgent`s with `n_simulations=16`, assert it terminates and the resulting NPZ round-trips through `dataset.py`. Commit `phase 7: end-to-end self-play smoke`.
 
 ### Phase 8 — One real training iteration
 
