@@ -1,7 +1,7 @@
-# Mugo: MLX Port of AutoGo (nilbot/autogo-mlx)
+# AutoGo-MLX: MLX Port of AutoGo (nilbot/autogo-mlx)
 ## High-Performance AlphaZero Go Training on Apple Silicon
 
-**Mugo** is a high-performance, native Apple Silicon MLX port of [AutoGo](https://github.com/ericjang/autogo) (Eric Jang's AlphaZero-style Go training sandbox). This repository leverages MLX's unified memory architecture, metal-accelerated arrays, and modern C++ FFI optimizations to build, train, and run an AlphaZero-style pipeline entirely on a single Apple Silicon Mac.
+**AutoGo-MLX** is a high-performance, native Apple Silicon MLX port of [AutoGo](https://github.com/ericjang/autogo) (Eric Jang's AlphaZero-style Go training sandbox). This repository leverages MLX's unified memory architecture, metal-accelerated arrays, and modern C++ FFI optimizations to build, train, and run an AlphaZero-style pipeline entirely on a single Apple Silicon Mac.
 
 This document serves as the project's technical showcase, highlighting the core architectural adaptations, performance optimizations, and reinforcement learning experimental outcomes.
 
@@ -23,12 +23,12 @@ Unlike PyTorch's stateful autograd engine, MLX uses a functional compilation mod
 * **Functional Optimization:** We wired `mlx.optimizers.AdamW` to apply gradient updates directly using functional dictionary updates: `optimizer.update(model, grads)`.
 
 ### 3. C++ FFI Leaf Batching (5x+ Throughput Boost)
-One of the load-bearing optimizations in Mugo is native FFI leaf batching (`src/mugo/batched_inference.py` & `alpha_go_cpp` C++ bindings):
+One of the load-bearing optimizations in AutoGo-MLX is native FFI leaf batching (`src/mugo/batched_inference.py` & `alpha_go_cpp` C++ bindings):
 * **FFI Overhead Elimination:** Invoking the neural network evaluator on single nodes through individual C++/Python calls introduces massive thread-scheduling and serialization latency.
 * **Dynamic Coalescing:** We modified the C++ MCTS engine (`alpha_go_cpp.MCTSTree`) to support a thread-safe leaf evaluation request queue. Concurrent MCTS search threads enqueue evaluation requests, which are dynamically coalesced into a batch of size $B$ or triggered via a $1\text{ms}$ timeout. A single GIL-free FFI call is made to Python to evaluate the batch on the Apple Silicon GPU in a single forward pass, yielding a **5x+ throughput improvement** in simulations per second.
 
 ### 4. Free-Threaded Python 3.13 (nogil) Compatibility
-To fully exploit high-core-count MacBooks, Mugo is built to be compatible with **Free-Threaded Python 3.13t**:
+To fully exploit high-core-count MacBooks, AutoGo-MLX is built to be compatible with **Free-Threaded Python 3.13t**:
 * **GIL-Free Search:** We compiled the C++ pybind11 extension against the `3.13-nogil` runtime.
 * **True Parallelism:** Multiple search threads drive MCTS simulations on separate CPU cores concurrently, invoking the shared MLX GPU evaluator completely in parallel without Global Interpreter Lock serialization.
 

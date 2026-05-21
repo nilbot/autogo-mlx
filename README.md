@@ -1,8 +1,8 @@
-# Mugo — MLX Port of AutoGo (nilbot/autogo-mlx)
+# AutoGo-MLX — MLX Port of AutoGo (nilbot/autogo-mlx)
 
-Mugo is a high-performance, native MLX port of [AutoGo](https://github.com/ericjang/autogo) — Eric Jang's AlphaZero-style Go training pipeline — specifically optimized for single-device training on Apple Silicon MacBooks.
+AutoGo-MLX is a high-performance, native MLX port of [AutoGo](https://github.com/ericjang/autogo) — Eric Jang's AlphaZero-style Go training pipeline — specifically optimized for single-device training on Apple Silicon MacBooks.
 
-By leveraging Apple Silicon's unified memory architecture, Metal-accelerated GPU computations, thread-safe C++ MCTS evaluation batching, and Global Interpreter Lock (GIL) free execution with Free-Threaded Python 3.13, Mugo provides a highly efficient and fast sandbox for reinforcement learning on a local machine.
+By leveraging Apple Silicon's unified memory architecture, Metal-accelerated GPU computations, thread-safe C++ MCTS evaluation batching, and Global Interpreter Lock (GIL) free execution with Free-Threaded Python 3.13, AutoGo-MLX provides a highly efficient and fast sandbox for reinforcement learning on a local machine.
 
 ---
 
