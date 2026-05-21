@@ -73,13 +73,11 @@ class MLXNNMCTSAgent:
         else:
             self.leaf_batch_size = int(leaf_batch_size)
 
-        # Thread pool for concurrent evaluation inside C++ callbacks
-        self._executor = ThreadPoolExecutor(max_workers=32)
         self.last_mcts_policy: np.ndarray | None = None
 
     def close(self) -> None:
-        """Shut down the internal thread pool."""
-        self._executor.shutdown(wait=True)
+        """No-op. Native C++ MCTS batching eliminates the Python thread pool."""
+        pass
 
     def __enter__(self) -> MLXNNMCTSAgent:
         return self
@@ -139,23 +137,19 @@ class MLXNNMCTSAgent:
             return policy_cpp, value_nn
 
         def batched_evaluator_cb(states: List[GoBoard]) -> List[Tuple[Dict[int, float], float]]:
-            """Process a batch of leaf evaluations concurrently using the thread pool."""
-            futures = []
+            """Process a batch of leaf evaluations directly in a single forward pass."""
+            eval_inputs = []
             for state in states:
                 board_HW = state.to_numpy()
                 to_play = state.to_play()
                 legal_flat = state.get_legal_moves_flat()
                 legal_actions_nn = legal_flat + [self.pass_index]
+                eval_inputs.append((board_HW, to_play, legal_actions_nn))
 
-                futures.append(
-                    self._executor.submit(
-                        self.evaluator.evaluate, board_HW, to_play, legal_actions_nn
-                    )
-                )
+            results_nn = self.evaluator.evaluate_batch(eval_inputs)
 
             results: List[Tuple[Dict[int, float], float]] = []
-            for state, fut in zip(states, futures):
-                policy_nn, value_nn = fut.result()
+            for policy_nn, value_nn in results_nn:
                 policy_cpp = {
                     (a if a < self.pass_index else PASS_ACTION): p
                     for a, p in policy_nn.items()

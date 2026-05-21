@@ -25,12 +25,12 @@ from mugo.model import SizeInvariantGoResNet
 
 
 @dataclass
-class InferenceRequest:
-    """A single inference request submitted by a search thread."""
-    board_HW: np.ndarray
-    to_play: int
-    legal_actions: list[int]
-    result_future: Future[tuple[dict[int, float], float]]
+class BatchInferenceRequest:
+    """A batch of inference requests submitted by a single search thread."""
+    boards_HW: list[np.ndarray]
+    to_plays: list[int]
+    legal_actions_list: list[list[int]]
+    result_future: Future[list[tuple[dict[int, float], float]]]
 
 
 class BatchedMLXEvaluator:
@@ -67,7 +67,7 @@ class BatchedMLXEvaluator:
         self.model.eval()
         mx.eval(self.model.parameters())
 
-        self.request_queue: queue.Queue[InferenceRequest] = queue.Queue()
+        self.request_queue: queue.Queue[BatchInferenceRequest] = queue.Queue()
         self.running = True
         self.worker_thread = threading.Thread(target=self._worker_loop, daemon=True)
         self.worker_thread.start()
@@ -89,26 +89,50 @@ class BatchedMLXEvaluator:
             ``(policy, value)`` where ``policy`` maps legal actions to probs
             and ``value`` is the win probability in ``[0, 1]``.
         """
+        results = self.evaluate_batch([(board_HW, to_play, list(legal_actions))])
+        return results[0]
+
+    def evaluate_batch(
+        self,
+        states: list[tuple[np.ndarray, int, list[int]]],
+    ) -> list[tuple[dict[int, float], float]]:
+        """Submit multiple boards for evaluation. Blocks until the results are ready.
+
+        Args:
+            states: A list of tuples ``(board_HW, to_play, legal_actions)``.
+
+        Returns:
+            A list of ``(policy, value)`` tuples corresponding to the input states.
+        """
         if not self.running:
             raise RuntimeError("Evaluator is stopped")
 
-        board_HW = np.asarray(board_HW)
-        if board_HW.shape != (self.board_size, self.board_size):
-            raise ValueError(
-                f"board_HW shape {board_HW.shape} != "
-                f"({self.board_size}, {self.board_size})"
-            )
-        legal = sorted({int(a) for a in legal_actions})
-        if not legal:
-            raise ValueError("legal_actions is empty (pass is always legal)")
-        if not (0 <= legal[0] and legal[-1] < self.n_actions):
-            raise ValueError(f"legal action out of range [0, {self.n_actions})")
+        boards_HW = []
+        to_plays = []
+        legal_actions_list = []
 
-        future: Future[tuple[dict[int, float], float]] = Future()
-        request = InferenceRequest(
-            board_HW=board_HW,
-            to_play=to_play,
-            legal_actions=legal,
+        for board_HW, to_play, legal_actions in states:
+            board_HW = np.asarray(board_HW)
+            if board_HW.shape != (self.board_size, self.board_size):
+                raise ValueError(
+                    f"board_HW shape {board_HW.shape} != "
+                    f"({self.board_size}, {self.board_size})"
+                )
+            legal = sorted({int(a) for a in legal_actions})
+            if not legal:
+                raise ValueError("legal_actions is empty (pass is always legal)")
+            if not (0 <= legal[0] and legal[-1] < self.n_actions):
+                raise ValueError(f"legal action out of range [0, {self.n_actions})")
+
+            boards_HW.append(board_HW)
+            to_plays.append(to_play)
+            legal_actions_list.append(legal)
+
+        future: Future[list[tuple[dict[int, float], float]]] = Future()
+        request = BatchInferenceRequest(
+            boards_HW=boards_HW,
+            to_plays=to_plays,
+            legal_actions_list=legal_actions_list,
             result_future=future,
         )
         self.request_queue.put(request)
@@ -133,40 +157,49 @@ class BatchedMLXEvaluator:
 
     def _worker_loop(self) -> None:
         while self.running:
-            batch: list[InferenceRequest] = []
+            batch_requests: list[BatchInferenceRequest] = []
+            total_items = 0
 
             # Block briefly for the first request
             try:
                 request = self.request_queue.get(timeout=0.05)
-                batch.append(request)
+                batch_requests.append(request)
+                total_items += len(request.boards_HW)
             except queue.Empty:
                 continue
 
             # Gather subsequent requests until batch size or timeout limit is met
             deadline = time.perf_counter() + self.batch_timeout
-            while len(batch) < self.batch_size and time.perf_counter() < deadline:
+            while total_items < self.batch_size and time.perf_counter() < deadline:
                 try:
                     remaining = max(0.0, deadline - time.perf_counter())
                     request = self.request_queue.get(timeout=remaining)
-                    batch.append(request)
+                    batch_requests.append(request)
+                    total_items += len(request.boards_HW)
                 except queue.Empty:
                     break
 
-            if batch:
+            if batch_requests:
                 try:
-                    self._process_batch(batch)
+                    self._process_batch(batch_requests)
                 except Exception as e:
-                    for req in batch:
+                    for req in batch_requests:
                         if not req.result_future.done():
                             req.result_future.set_exception(e)
 
-    def _process_batch(self, batch: list[InferenceRequest]) -> None:
-        B = len(batch)
-        boards_np = np.empty((B, self.board_size, self.board_size, 3), dtype=np.float32)
-        masks_np = np.ones((B, self.board_size, self.board_size), dtype=np.float32)
+    def _process_batch(self, batch_requests: list[BatchInferenceRequest]) -> None:
+        total_items = sum(len(r.boards_HW) for r in batch_requests)
+        if total_items == 0:
+            return
 
-        for i, r in enumerate(batch):
-            boards_np[i] = _one_hot_board(r.board_HW, r.to_play)
+        boards_np = np.empty((total_items, self.board_size, self.board_size, 3), dtype=np.float32)
+        masks_np = np.ones((total_items, self.board_size, self.board_size), dtype=np.float32)
+
+        idx = 0
+        for r in batch_requests:
+            for board, to_play in zip(r.boards_HW, r.to_plays):
+                boards_np[idx] = _one_hot_board(board, to_play)
+                idx += 1
 
         board_BHWC = mx.array(boards_np)
         mask_BHW = mx.array(masks_np)
@@ -178,14 +211,18 @@ class BatchedMLXEvaluator:
         policy_np = np.array(policy_BA, dtype=np.float64)
         value_np = np.array(value_B, dtype=np.float64)
 
-        for i, r in enumerate(batch):
-            logits_A = policy_np[i]
-            legal = r.legal_actions
-            legal_logits = logits_A[legal]
-            legal_logits -= legal_logits.max()
-            exp = np.exp(legal_logits)
-            probs = exp / exp.sum()
-            policy = {a: float(p) for a, p in zip(legal, probs)}
+        idx = 0
+        for r in batch_requests:
+            req_results = []
+            for legal in r.legal_actions_list:
+                logits_A = policy_np[idx]
+                legal_logits = logits_A[legal]
+                legal_logits -= legal_logits.max()
+                exp = np.exp(legal_logits)
+                probs = exp / exp.sum()
+                policy = {a: float(p) for a, p in zip(legal, probs)}
 
-            value = 1.0 / (1.0 + math.exp(-value_np[i]))
-            r.result_future.set_result((policy, value))
+                value = 1.0 / (1.0 + math.exp(-value_np[idx]))
+                req_results.append((policy, value))
+                idx += 1
+            r.result_future.set_result(req_results)
