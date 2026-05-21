@@ -97,6 +97,18 @@ The scheduled runner picks the lowest unchecked phase, completes it, and ticks t
 
 - [ ] **P10.** Add `experiments/001_train_from_scratch/` driven by `run_iteration.sh 0 5` (five collect+train cycles). Bootstrap iter-0 with random-vs-random games (`pre_collect_random.py` mirroring upstream). Each iteration: collect 1000 games on a single MLX-driven worker, train 2000 steps, swap the new checkpoint in. Final eval: 100 games against the iter-0 random agent — target win rate ≥ 80%. If we don't hit it, the report has to say why. Commit `phase 10: 5-iter training run + eval`.
 
+### Phase 11 — KataGo Distillation / SGF Bootstrapping
+
+- [x] **P11.** Implement supervised pre-training from expert records. Build a universal SGF parser (`src/mugo/sgf.py`) utilizing the C++ `GoBoard` for state validation. Develop the supervised distillation script (`scripts/distill_bootstrap.py`) with a synthetic fallback dataset. Execute the distillation training loop on standard Apple Silicon MLX GPU (`Device(gpu, 0)`), ensuring the policy and value logits converge (SGF move prediction accuracy increases from ~3% to ~65% in 200 steps). Save pre-trained weights to `experiments/000_smoke/checkpoints/bootstrap_iter0.safetensors` to seed the reinforcement learning cycle with basic tactical Go understanding. Commit `phase 11: KataGo SGF distillation and bootstrapping`.
+
+### Phase 12 — FFI C++ Batching
+
+- [ ] **P12.** Implement Native C++ Batching to minimize C++/Python FFI boundary time. Update the pybind11 extension (`alpha_go_cpp.MCTSTree`) to support a thread-safe leaf evaluation request queue.aggregate requests into batch size `B` or trigger via timeout (1ms), make a single GIL-free FFI call to Python evaluator with shape `(B, 9, 9, 3)`, evaluate in a single forward pass on MLX, and distribute the predictions back to the waiting threads. Show benchmark of 5x+ throughput improvement in simulations per second.
+
+### Phase 13 — Free-Threaded Python 3.13 (nogil)
+
+- [ ] **P13.** Remove Global Interpreter Lock (GIL) serialization completely. Setup a free-threaded virtual environment using `uv venv --python 3.13t` and build/link the C++ MCTS extension against the `3.13-nogil` runtime. Verify concurrent CPU search and GPU evaluation run parallel without thread serialization, maximizing CPU cores and GPU utilization.
+
 ## Out of scope for this plan
 
 These exist so the scheduled runner doesn't get clever:

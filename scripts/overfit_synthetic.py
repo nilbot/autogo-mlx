@@ -108,7 +108,7 @@ class Config:
 
 def main(cfg: Config = Config()) -> None:
     assert mx.metal.is_available(), "Metal GPU required for meaningful training"
-    mx.set_default_device(mx.gpu)
+    mx.set_default_device(mx.gpu)  # type: ignore[arg-type]
     mx.random.seed(cfg.seed)
 
     data = make_synthetic(cfg.n_samples, cfg.board_size, seed=cfg.seed)

@@ -261,9 +261,9 @@ class GoDataset:
         a_src = h * w + 1
         out = np.zeros(a_dst, dtype=np.float32)
 
-        if "mcts_policy" in data:
+        if "mcts_policy" in data and len(data["mcts_policy"]) > 0:
             src = data["mcts_policy"][local].astype(np.float32, copy=False)
-        elif "mcts_visits" in data and "mcts_temperatures" in data:
+        elif "mcts_visits" in data and "mcts_temperatures" in data and len(data["mcts_visits"]) > 0:
             src = self._policy_from_visits(
                 data["mcts_visits"][local].astype(np.float32, copy=False),
                 float(data["mcts_temperatures"][local]),

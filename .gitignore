@@ -21,6 +21,10 @@ dist/
 *.npy
 *.safetensors
 checkpoints/
+experiments/*/bootstrap_sgf/
+experiments/*/bootstrap_npz/
+experiments/*/logs/
+experiments/*/selfplay/
 
 # Vendor / submodule build outputs
 third_party/*/build/

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E402
 """Phase 9 — PyTorch vs MLX weight parity checker.
 
 Instantiates SizeInvariantGoResNet in both PyTorch (upstream) and MLX,
@@ -23,7 +24,7 @@ sys.path.append(str(WORKSPACE_ROOT / "third_party/autogo/src"))
 import torch
 
 from mugo.model import SizeInvariantGoResNet as MLXGoResNet
-from alpha_go.model import SizeInvariantGoResNet as PTGoResNet
+from alpha_go.model import SizeInvariantGoResNet as PTGoResNet  # type: ignore[import-not-found]
 
 
 def copy_weights(mlx_model: MLXGoResNet, pt_model: PTGoResNet) -> None:
@@ -120,7 +121,7 @@ def main() -> None:
     raw_boards[mask == 0.0] = 0
 
     print(f"\nCreated synthetic input batch of shape {raw_boards.shape}")
-    print(f"Masked out last row and column of the last batch element to verify masking parity.")
+    print("Masked out last row and column of the last batch element to verify masking parity.")
 
     # 1. Run PyTorch Forward Pass
     print("Running PyTorch forward pass...")
