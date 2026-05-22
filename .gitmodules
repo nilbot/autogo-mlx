@@ -1,3 +1,4 @@
 [submodule "third_party/autogo"]
 	path = third_party/autogo
-	url = https://github.com/ericjang/autogo
+	url = https://github.com/nilbot/autogo.git
+	branch = local-patch
