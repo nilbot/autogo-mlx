@@ -13,8 +13,8 @@ Porting the pipeline from PyTorch to MLX required several structural modificatio
 
 ### 1. NHWC Tensor Layout & Padded Go Canvas
 While PyTorch defaults to an `NCHW` spatial layout, **MLX** convolutions are natively optimized for `NHWC`. 
-* **Input Transformation:** We restructured the board representation to support `NHWC` end-to-end. The board tensor shape maps to `(Batch, Height, Width, 3)` (channels: Empty, Self, Opponent) inside the custom dataset layer (`src/mugo/dataset.py`).
-* **Masked Convolutions:** In the `SizeInvariantGoResNet` model (`src/mugo/model.py`), zero-padding is applied to board dimensions. We implemented a custom `MaskedBatchNorm2d` (and masked reductions) to re-zero padded regions after every operation, preventing out-of-bounds canvas padding from contaminating neighbor convolutions.
+* **Input Transformation:** We restructured the board representation to support `NHWC` end-to-end. The board tensor shape maps to `(Batch, Height, Width, 3)` (channels: Empty, Self, Opponent) inside the custom dataset layer (`src/autogo_mlx/dataset.py`).
+* **Masked Convolutions:** In the `SizeInvariantGoResNet` model (`src/autogo_mlx/model.py`), zero-padding is applied to board dimensions. We implemented a custom `MaskedBatchNorm2d` (and masked reductions) to re-zero padded regions after every operation, preventing out-of-bounds canvas padding from contaminating neighbor convolutions.
 
 ### 2. Functional Gradient Flows & Optimizers
 Unlike PyTorch's stateful autograd engine, MLX uses a functional compilation model:
@@ -23,7 +23,7 @@ Unlike PyTorch's stateful autograd engine, MLX uses a functional compilation mod
 * **Functional Optimization:** We wired `mlx.optimizers.AdamW` to apply gradient updates directly using functional dictionary updates: `optimizer.update(model, grads)`.
 
 ### 3. C++ FFI Leaf Batching (5x+ Throughput Boost)
-One of the load-bearing optimizations in AutoGo-MLX is native FFI leaf batching (`src/mugo/batched_inference.py` & `alpha_go_cpp` C++ bindings):
+One of the load-bearing optimizations in AutoGo-MLX is native FFI leaf batching (`src/autogo_mlx/batched_inference.py` & `alpha_go_cpp` C++ bindings):
 * **FFI Overhead Elimination:** Invoking the neural network evaluator on single nodes through individual C++/Python calls introduces massive thread-scheduling and serialization latency.
 * **Dynamic Coalescing:** We modified the C++ MCTS engine (`alpha_go_cpp.MCTSTree`) to support a thread-safe leaf evaluation request queue. Concurrent MCTS search threads enqueue evaluation requests, which are dynamically coalesced into a batch of size $B$ or triggered via a $1\text{ms}$ timeout. A single GIL-free FFI call is made to Python to evaluate the batch on the Apple Silicon GPU in a single forward pass, yielding a **5x+ throughput improvement** in simulations per second.
 

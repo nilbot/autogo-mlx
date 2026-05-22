@@ -8,9 +8,9 @@ By leveraging Apple Silicon's unified memory architecture, Metal-accelerated GPU
 
 ## 📖 Key Documentation
 
-*   **[`SUMMARY.md`](SUMMARY.md):** Deep technical write-up detailing the PyTorch to MLX translation, layout adaptations (NHWC), FFI batching optimizations, free-threaded nogil compatibility, and reinforcement learning convergence results. **(Read this first!)**
-*   **[`PORT_PLAN.md`](PORT_PLAN.md):** The living, 14-phase implementation plan, all fully checked off.
-*   **[`WRITEUP.md`](WRITEUP.md):** Rationale and orientation document analyzing the design philosophy of the AutoGo system.
+*   **[`docs/porting_to_mlx/SUMMARY.md`](docs/porting_to_mlx/SUMMARY.md):** Deep technical write-up detailing the PyTorch to MLX translation, layout adaptations (NHWC), FFI batching optimizations, free-threaded nogil compatibility, and reinforcement learning convergence results. **(Read this first!)**
+*   **[`docs/porting_to_mlx/PORT_PLAN.md`](docs/porting_to_mlx/PORT_PLAN.md):** The living, 14-phase implementation plan, all fully checked off.
+*   **[`docs/system_overview.md`](docs/system_overview.md):** Rationale and orientation document analyzing the design philosophy of the AutoGo system.
 
 ---
 
@@ -66,7 +66,7 @@ cd experiments/001_train_from_scratch
 
 ## 🛠️ Repository Structure
 
-*   `src/mugo/` - Core Python package implementing the MLX models, loss, custom dataset, and game execution.
+*   `src/autogo_mlx/` - Core Python package implementing the MLX models, loss, custom dataset, and game execution.
 *   `scripts/` - Utilities for C++ compiling, supervised SGF pre-training, parity verification, and report tracking.
 *   `tests/` - Robust test suite validating every critical compute boundary.
 *   `experiments/` - Configs, scripts, and logs tracking active training runs.

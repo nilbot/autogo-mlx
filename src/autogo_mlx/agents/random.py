@@ -1,4 +1,5 @@
 """Phase 10 — Random agent for bootstrapping and evaluations."""
+
 from __future__ import annotations
 
 import random
@@ -6,7 +7,7 @@ from typing import Tuple, Union, Iterable
 
 import numpy as np
 
-from mugo.cpp_bridge import GoBoard, PASS_ACTION
+from autogo_mlx.cpp_bridge import GoBoard
 
 
 class RandomAgent:

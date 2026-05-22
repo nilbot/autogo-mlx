@@ -8,8 +8,9 @@ Also automatically updates the task.md, walkthrough.md, and PORT_PLAN.md when co
 
 from __future__ import annotations
 
+import argparse
+import os
 import re
-import sys
 import time
 from pathlib import Path
 
@@ -18,7 +19,6 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 WORKSPACE_ROOT = SCRIPT_DIR.parent
 EXP_DIR = WORKSPACE_ROOT / "experiments" / "001_train_from_scratch"
 LOG_DIR = EXP_DIR / "logs"
-BRAIN_DIR = Path("/Users/nilbot/.gemini/antigravity/brain/8bf34807-f171-48e6-8802-b44ba86a6055")
 
 
 def parse_collection_log(log_path: Path, data_dir: Path | None = None) -> dict:
@@ -26,10 +26,10 @@ def parse_collection_log(log_path: Path, data_dir: Path | None = None) -> dict:
         return {"status": "Pending", "games": 0, "duration": 0.0}
 
     content = log_path.read_text()
-    
+
     # Check if finished
     finished_match = re.search(r"Collection completed in ([\d\.]+) seconds", content)
-    
+
     # Count games completed
     games = 0
     if data_dir and data_dir.exists():
@@ -45,14 +45,14 @@ def parse_collection_log(log_path: Path, data_dir: Path | None = None) -> dict:
             "games": 1000 if games == 0 else games,
             "duration": float(finished_match.group(1)),
         }
-    
+
     if games > 0:
         return {
             "status": "In Progress",
             "games": games,
             "duration": 0.0,
         }
-        
+
     return {
         "status": "Starting",
         "games": 0,
@@ -73,16 +73,16 @@ def parse_training_log(log_path: Path) -> dict:
         }
 
     content = log_path.read_text()
-    
+
     # Check if finished
     finished_match = re.search(r"Training finished in ([\d\.]+)s", content)
-    
+
     # Parse last step info
     step_matches = re.findall(
         r"Step (\d+)/2000 \| Loss: ([\d\.]+) \(Pol: ([\d\.]+), Val: ([\d\.]+)\) \| Train Policy Acc: ([\d\.]+)%",
-        content
+        content,
     )
-    
+
     step = 0
     loss, pol_loss, val_loss, acc = 0.0, 0.0, 0.0, 0.0
     if step_matches:
@@ -96,9 +96,9 @@ def parse_training_log(log_path: Path) -> dict:
     # Parse final avg metrics if available
     avg_match = re.search(
         r"Final average metrics over last 100 steps:\s+Loss: ([\d\.]+) \(Pol: ([\d\.]+), Val: ([\d\.]+)\)\s+Policy Acc: ([\d\.]+)%",
-        content
+        content,
     )
-    
+
     if avg_match:
         loss = float(avg_match.group(1))
         pol_loss = float(avg_match.group(2))
@@ -115,7 +115,7 @@ def parse_training_log(log_path: Path) -> dict:
             "acc": acc,
             "duration": float(finished_match.group(1)),
         }
-        
+
     if step > 0:
         return {
             "status": "In Progress",
@@ -126,7 +126,7 @@ def parse_training_log(log_path: Path) -> dict:
             "acc": acc,
             "duration": 0.0,
         }
-        
+
     return {
         "status": "Starting",
         "step": 0,
@@ -143,7 +143,7 @@ def parse_evaluation_log(log_path: Path) -> dict:
         return {"status": "Pending", "win_rate": 0.0, "details": ""}
 
     content = log_path.read_text()
-    
+
     finished_match = "Evaluation Complete!" in content
     win_rate_match = re.search(r"Model Wins: \d+ / \d+ \(([\d\.]+)%\)", content)
     model_wins_match = re.search(r"Model Wins: (\d+) / (\d+)", content)
@@ -160,14 +160,22 @@ def parse_evaluation_log(log_path: Path) -> dict:
             "random_wins": random_wins,
             "details": f"{model_wins} wins / {random_wins} losses",
         }
-        
+
     if finished_match:
-        return {"status": "Completed", "win_rate": 0.0, "details": "Finished but no parseable results"}
+        return {
+            "status": "Completed",
+            "win_rate": 0.0,
+            "details": "Finished but no parseable results",
+        }
 
     # Look for current game
     game_matches = re.findall(r"\[(\d+)/100\] Game", content)
     if game_matches:
-        return {"status": "In Progress", "win_rate": 0.0, "details": f"Playing Game {game_matches[-1]}/100"}
+        return {
+            "status": "In Progress",
+            "win_rate": 0.0,
+            "details": f"Playing Game {game_matches[-1]}/100",
+        }
 
     return {"status": "Starting", "win_rate": 0.0, "details": ""}
 
@@ -178,46 +186,99 @@ def make_progress_bar(pct: float) -> str:
     return "█" * filled + "░" * empty
 
 
-def generate_report() -> None:
+def generate_report(brain_dir: Path | None = None) -> None:
     print("Compiling active training metrics...", flush=True)
 
     # 1. Parse all stages
     stages = []
-    
+
     # Bootstrap
-    boot_collect = parse_collection_log(LOG_DIR / "bootstrap_collect.log", EXP_DIR / "random-it0")
+    boot_collect = parse_collection_log(
+        LOG_DIR / "bootstrap_collect.log", EXP_DIR / "random-it0"
+    )
     boot_train = parse_training_log(LOG_DIR / "bootstrap_train.log")
-    stages.append(("Bootstrap Collection", boot_collect["status"], boot_collect.get("games", 0) / 1000.0, boot_collect["duration"], f"{boot_collect.get('games', 0)}/1000 games", ""))
-    stages.append(("Bootstrap Training", boot_train["status"], boot_train["step"] / 2000.0, boot_train["duration"], f"Step {boot_train['step']}/2000", f"Loss={boot_train['loss']:.4f}, Acc={boot_train['acc']:.2%}"))
+    stages.append(
+        (
+            "Bootstrap Collection",
+            boot_collect["status"],
+            boot_collect.get("games", 0) / 1000.0,
+            boot_collect["duration"],
+            f"{boot_collect.get('games', 0)}/1000 games",
+            "",
+        )
+    )
+    stages.append(
+        (
+            "Bootstrap Training",
+            boot_train["status"],
+            boot_train["step"] / 2000.0,
+            boot_train["duration"],
+            f"Step {boot_train['step']}/2000",
+            f"Loss={boot_train['loss']:.4f}, Acc={boot_train['acc']:.2%}",
+        )
+    )
 
     # Iterations 0-4
     for i in range(5):
         c_log = LOG_DIR / f"collect_iter{i}.log"
-        t_log = LOG_DIR / f"train_iter{i+1}.log"
-        
+        t_log = LOG_DIR / f"train_iter{i + 1}.log"
+
         c_data = parse_collection_log(c_log, EXP_DIR / "selfplay" / f"iter{i}")
         t_data = parse_training_log(t_log)
-        
-        stages.append((f"Iter {i} Self-Play", c_data["status"], c_data["games"] / 1000.0, c_data["duration"], f"{c_data['games']}/1000 games", ""))
-        stages.append((f"Iter {i+1} Training", t_data["status"], t_data["step"] / 2000.0, t_data["duration"], f"Step {t_data['step']}/2000", f"Loss={t_data['loss']:.4f}, Acc={t_data['acc']:.2%}"))
+
+        stages.append(
+            (
+                f"Iter {i} Self-Play",
+                c_data["status"],
+                c_data["games"] / 1000.0,
+                c_data["duration"],
+                f"{c_data['games']}/1000 games",
+                "",
+            )
+        )
+        stages.append(
+            (
+                f"Iter {i + 1} Training",
+                t_data["status"],
+                t_data["step"] / 2000.0,
+                t_data["duration"],
+                f"Step {t_data['step']}/2000",
+                f"Loss={t_data['loss']:.4f}, Acc={t_data['acc']:.2%}",
+            )
+        )
 
     # Evaluation
     eval_data = parse_evaluation_log(LOG_DIR / "evaluation.log")
-    eval_pct = 1.0 if eval_data["status"] == "Completed" else (0.5 if eval_data["status"] == "In Progress" else 0.0)
-    stages.append(("Final Evaluation", eval_data["status"], eval_pct, 0.0, eval_data["details"], f"Win Rate={eval_data.get('win_rate', 0.0):.1f}%" if eval_data["status"] == "Completed" else ""))
+    eval_pct = (
+        1.0
+        if eval_data["status"] == "Completed"
+        else (0.5 if eval_data["status"] == "In Progress" else 0.0)
+    )
+    stages.append(
+        (
+            "Final Evaluation",
+            eval_data["status"],
+            eval_pct,
+            0.0,
+            eval_data["details"],
+            f"Win Rate={eval_data.get('win_rate', 0.0):.1f}%"
+            if eval_data["status"] == "Completed"
+            else "",
+        )
+    )
 
     # 2. Build Markdown Table
     tbl_lines = [
         "| Stage | Status | Progress | Progress Detail | Duration | Metrics / Details |",
-        "| :--- | :--- | :--- | :--- | :--- | :--- |"
+        "| :--- | :--- | :--- | :--- | :--- | :--- |",
     ]
-    
+
     total_duration = 0.0
     for name, status, pct, dur, detail, metrics in stages:
         bar = make_progress_bar(pct)
         dur_str = f"{dur:.1f}s" if dur > 0 else "—"
         total_duration += dur
-        
+
         # Color coding for status
         status_styled = status
         if status == "Completed":
@@ -228,29 +289,37 @@ def generate_report() -> None:
             status_styled = "🟡 **Starting**"
         else:
             status_styled = "⚪ Pending"
-            
-        tbl_lines.append(f"| {name} | {status_styled} | `{bar}` {pct:.0%} | {detail} | {dur_str} | {metrics} |")
+
+        tbl_lines.append(
+            f"| {name} | {status_styled} | `{bar}` {pct:.0%} | {detail} | {dur_str} | {metrics} |"
+        )
 
     # Estimate remaining time
     # Let's count how many collections and trainings are completed, and project remaining
-    comp_collects = sum(1 for n, s, _, _, _, _ in stages if "Self-Play" in n and s == "Completed")
-    comp_trains = sum(1 for n, s, _, _, _, _ in stages if "Training" in n and s == "Completed")
-    
+    comp_collects = sum(
+        1 for n, s, _, _, _, _ in stages if "Self-Play" in n and s == "Completed"
+    )
+    comp_trains = sum(
+        1 for n, s, _, _, _, _ in stages if "Training" in n and s == "Completed"
+    )
+
     avg_collect_dur = 1265.0  # fallback estimate based on smoke tests (200 games / 8 workers = 1265s, actually 1000 games would be 6325s)
-    avg_train_dur = 408.0    # based on bootstrap training duration
-    
+    avg_train_dur = 408.0  # based on bootstrap training duration
+
     # Try to use actual durations if available
-    collect_durs = [dur for n, _, _, dur, _, _ in stages if "Self-Play" in n and dur > 0]
+    collect_durs = [
+        dur for n, _, _, dur, _, _ in stages if "Self-Play" in n and dur > 0
+    ]
     if collect_durs:
         avg_collect_dur = sum(collect_durs) / len(collect_durs)
-        
+
     train_durs = [dur for n, _, _, dur, _, _ in stages if "Training" in n and dur > 0]
     if train_durs:
         avg_train_dur = sum(train_durs) / len(train_durs)
 
     pending_collects = 5 - comp_collects
     pending_trains = 6 - comp_trains  # 5 iterations + bootstrap
-    
+
     # Subtract active progress from estimate
     active_collect_pct = 0.0
     active_train_pct = 0.0
@@ -259,16 +328,16 @@ def generate_report() -> None:
             active_collect_pct = pct
         elif "Training" in name and status == "In Progress":
             active_train_pct = pct
-            
+
     rem_collect_time = (pending_collects - active_collect_pct) * avg_collect_dur
     rem_train_time = (pending_trains - active_train_pct) * avg_train_dur
-    
+
     total_rem_sec = rem_collect_time + rem_train_time
     rem_hours = int(total_rem_sec // 3600)
     rem_mins = int((total_rem_sec % 3600) // 60)
-    
+
     rem_str = f"{rem_hours}h {rem_mins}m" if total_rem_sec > 0 else "0m (Finishing)"
-    
+
     # 3. Write report.md
     report_content = f"""# Phase 10: Multi-Iteration Reinforcement Learning Loops Report
 
@@ -289,7 +358,9 @@ This report summarizes the reinforcement learning progress of training `SizeInva
 """
 
     if eval_data["status"] == "Completed":
-        success_str = "SUCCESS" if eval_data["win_rate"] >= 80.0 else "INSUFFICIENT_WINRATE"
+        success_str = (
+            "SUCCESS" if eval_data["win_rate"] >= 80.0 else "INSUFFICIENT_WINRATE"
+        )
         report_content += f"""### 🎉 Execution Completed!
 
 The multi-iteration reinforcement learning training run has completed successfully!
@@ -297,20 +368,20 @@ The multi-iteration reinforcement learning training run has completed successful
 - **Final Evaluation Model**: `iter5.safetensors`
 - **Evaluation Opponent**: `RandomAgent`
 - **Balanced Match Details**: 100 games (50 Black, 50 White), search noise disabled.
-- **Match Score**: Model **{eval_data.get('model_wins', 0)}** wins, RandomAgent **{eval_data.get('random_wins', 0)}** wins.
-- **Final Evaluation Win Rate**: **{eval_data.get('win_rate', 0.0):.1f}%** (Target: $\\ge 80\\%$)
+- **Match Score**: Model **{eval_data.get("model_wins", 0)}** wins, RandomAgent **{eval_data.get("random_wins", 0)}** wins.
+- **Final Evaluation Win Rate**: **{eval_data.get("win_rate", 0.0):.1f}%** (Target: $\\ge 80\\%$)
 - **Outcome Status**: **{success_str}**
 
 ### Training Convergence Details
 
-- **Bootstrap Iter 0**: Policy Accuracy = {boot_train['acc']:.2%}, Loss = {boot_train['loss']:.4f}
+- **Bootstrap Iter 0**: Policy Accuracy = {boot_train["acc"]:.2%}, Loss = {boot_train["loss"]:.4f}
 """
         # Add details for other iterations if they completed
         for i in range(5):
-            t_log = LOG_DIR / f"train_iter{i+1}.log"
+            t_log = LOG_DIR / f"train_iter{i + 1}.log"
             t_data = parse_training_log(t_log)
             if t_data["status"] == "Completed":
-                report_content += f"- **Iteration {i+1}**: Policy Accuracy = {t_data['acc']:.2%}, Loss = {t_data['loss']:.4f}\n"
+                report_content += f"- **Iteration {i + 1}**: Policy Accuracy = {t_data['acc']:.2%}, Loss = {t_data['loss']:.4f}\n"
 
     else:
         report_content += f"""### Active Status
@@ -318,7 +389,7 @@ The multi-iteration reinforcement learning training run has completed successful
 The orchestrator is currently executing the training loop. Progress is monitored and compiled autonomously.
 
 - **Current Active Stage**: {next((name for name, status, _, _, _, _ in stages if status == "In Progress"), "Waiting for Orchestrator")}
-- **Last Log Updated At**: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}
+- **Last Log Updated At**: {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())}
 """
 
     EXP_DIR.mkdir(parents=True, exist_ok=True)
@@ -327,55 +398,75 @@ The orchestrator is currently executing the training loop. Progress is monitored
 
     # 4. If Completed, update task.md, walkthrough.md, and PORT_PLAN.md!
     if eval_data["status"] == "Completed":
-        update_brain_and_repo_artifacts(eval_data.get("win_rate", 0.0), eval_data.get("model_wins", 0), eval_data.get("random_wins", 0), stages)
+        update_brain_and_repo_artifacts(
+            eval_data.get("win_rate", 0.0),
+            eval_data.get("model_wins", 0),
+            eval_data.get("random_wins", 0),
+            stages,
+            brain_dir=brain_dir,
+        )
 
 
-def update_brain_and_repo_artifacts(win_rate: float, model_wins: int, random_wins: int, stages: list) -> None:
+def update_brain_and_repo_artifacts(
+    win_rate: float,
+    model_wins: int,
+    random_wins: int,
+    stages: list,
+    brain_dir: Path | None = None,
+) -> None:
     print("Performing final check-offs and walkthrough updates...", flush=True)
 
     # 1. Update task.md
-    task_file = BRAIN_DIR / "task.md"
-    if task_file.exists():
-        task_content = task_file.read_text()
-        task_content = task_content.replace(
-            "- [/] Run the full 5-iteration reinforcement learning training loop and evaluation",
-            "- [x] Run the full 5-iteration reinforcement learning training loop and evaluation"
-        )
-        task_content = task_content.replace(
-            "- [ ] Generate the final `report.md` documenting results",
-            "- [x] Generate the final `report.md` documenting results"
-        )
-        task_file.write_text(task_content)
-        print("Updated task.md successfully!", flush=True)
+    if brain_dir:
+        task_file = brain_dir / "task.md"
+        if task_file.exists():
+            task_content = task_file.read_text()
+            task_content = task_content.replace(
+                "- [/] Run the full 5-iteration reinforcement learning training loop and evaluation",
+                "- [x] Run the full 5-iteration reinforcement learning training loop and evaluation",
+            )
+            task_content = task_content.replace(
+                "- [ ] Generate the final `report.md` documenting results",
+                "- [x] Generate the final `report.md` documenting results",
+            )
+            task_file.write_text(task_content)
+            print("Updated task.md successfully!", flush=True)
+        else:
+            print(f"Warning: task.md not found in brain_dir: {brain_dir}", flush=True)
+    else:
+        print("No brain_dir provided, skipping task.md updates.", flush=True)
 
-    # 2. Update PORT_PLAN.md in workspace
-    plan_file = WORKSPACE_ROOT / "PORT_PLAN.md"
+    # 2. Update PORT_PLAN.md in workspace (docs/porting_to_mlx/PORT_PLAN.md)
+    plan_file = WORKSPACE_ROOT / "docs" / "porting_to_mlx" / "PORT_PLAN.md"
     if plan_file.exists():
         plan_content = plan_file.read_text()
         plan_content = plan_content.replace(
             "- [ ] **P10.** Add `experiments/001_train_from_scratch/` driven by `run_iteration.sh 0 5`",
-            "- [x] **P10.** Add `experiments/001_train_from_scratch/` driven by `run_iteration.sh 0 5`"
+            "- [x] **P10.** Add `experiments/001_train_from_scratch/` driven by `run_iteration.sh 0 5`",
         )
         plan_content = plan_content.replace(
             "- [ ] **P10.** Add `experiments/001_train_from_scratch/` driven by `run_iteration.sh 0 4`",
-            "- [x] **P10.** Add `experiments/001_train_from_scratch/` driven by `run_iteration.sh 0 4`"
+            "- [x] **P10.** Add `experiments/001_train_from_scratch/` driven by `run_iteration.sh 0 4`",
         )
         plan_file.write_text(plan_content)
         print("Updated PORT_PLAN.md successfully!", flush=True)
+    else:
+        print(f"Warning: PORT_PLAN.md not found at {plan_file}", flush=True)
 
     # 3. Create or update walkthrough.md in brain
-    walkthrough_file = BRAIN_DIR / "walkthrough.md"
-    
-    # Construct a beautiful walkthrough table
-    tbl_lines = [
-        "| Stage | Status | Duration | Key Metrics |",
-        "| :--- | :--- | :--- | :--- |"
-    ]
-    for name, status, _, dur, _, metrics in stages:
-        if status == "Completed":
-            tbl_lines.append(f"| {name} | Completed | {dur:.1f}s | {metrics} |")
+    if brain_dir:
+        walkthrough_file = brain_dir / "walkthrough.md"
 
-    walkthrough_content = f"""# Walkthrough - Phase 10: Multi-Iteration Reinforcement Learning loops
+        # Construct a beautiful walkthrough table
+        tbl_lines = [
+            "| Stage | Status | Duration | Key Metrics |",
+            "| :--- | :--- | :--- | :--- |",
+        ]
+        for name, status, _, dur, _, metrics in stages:
+            if status == "Completed":
+                tbl_lines.append(f"| {name} | Completed | {dur:.1f}s | {metrics} |")
+
+        walkthrough_content = f"""# Walkthrough - Phase 10: Multi-Iteration Reinforcement Learning loops
 
 We have successfully executed the reinforcement learning training run from scratch on Apple Silicon using MLX. The model was trained entirely on the Apple Silicon GPU (`Device(gpu, 0)`), leveraging our custom native C++ batching evaluator and nogil multithreading to maximize hardware utilization.
 
@@ -398,9 +489,21 @@ All automated tests remained perfectly green, and the reinforcement learning tra
 
 Phase 10 is 100% complete and fully verified!
 """
-    walkthrough_file.write_text(walkthrough_content)
-    print("walkthrough.md updated successfully!", flush=True)
+        walkthrough_file.write_text(walkthrough_content)
+        print("walkthrough.md updated successfully!", flush=True)
+    else:
+        print("No brain_dir provided, skipping walkthrough.md updates.", flush=True)
 
 
 if __name__ == "__main__":
-    generate_report()
+    parser = argparse.ArgumentParser(description="Autonomous Progress Reporter")
+    parser.add_argument(
+        "--brain-dir",
+        type=str,
+        default=os.environ.get("BRAIN_DIR", ""),
+        help="Path to the brain directory where task.md and walkthrough.md live",
+    )
+    args = parser.parse_args()
+
+    brain_path = Path(args.brain_dir) if args.brain_dir else None
+    generate_report(brain_dir=brain_path)

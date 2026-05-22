@@ -17,23 +17,23 @@ import mlx.core as mx
 import mlx.nn as nn
 import mlx.optimizers as opt
 
-# Ensure we import from mugo correctly
+# Ensure we import from autogo_mlx correctly
 sys.path.append(str(Path(__file__).resolve().parents[1] / "src"))
 
-from mugo.dataset import GoDataset
-from mugo.loss import compute_dense_loss
-from mugo.model import SizeInvariantGoResNet
-from mugo.sgf import import_sgf_directory
+from autogo_mlx.dataset import GoDataset
+from autogo_mlx.loss import compute_dense_loss
+from autogo_mlx.model import SizeInvariantGoResNet
+from autogo_mlx.sgf import import_sgf_directory
 
 
 def create_synthetic_sgf_dataset(directory: Path, count: int = 15) -> None:
     """Create a set of synthetic SGF files representing expert games.
-    
+
     Ensures that we can run and verify the distillation pipeline successfully
     even if the user hasn't downloaded SGF databases yet.
     """
     directory.mkdir(parents=True, exist_ok=True)
-    
+
     # 3 distinct high-quality 9x9 games
     games = [
         # Game 1
@@ -44,9 +44,9 @@ def create_synthetic_sgf_dataset(directory: Path, count: int = 15) -> None:
 ;B[ee];W[ge];B[ce];W[fc];B[dg];W[dd];B[cd];W[de];B[df];W[cc];B[bc];W[cb];B[bb];W[gg];B[ff];W[gf];B[fg];W[fh];B[eh];W[gh];B[fi];W[gi];B[])""",
         # Game 3
         """(;GM[1]FF[4]CA[UTF-8]AP[Go]SZ[9]KM[7.5]RE[B+2.5]
-;B[fd];W[df];B[dd];W[ff];B[gf];W[ge];B[fe];W[gg];B[hf];W[he];B[ef];W[fg];B[eg];W[eh];B[dh];W[dg];B[ch];W[fh];B[cf];W[de];B[ee];W[ce];B[cd];W[])"""
+;B[fd];W[df];B[dd];W[ff];B[gf];W[ge];B[fe];W[gg];B[hf];W[he];B[ef];W[fg];B[eg];W[eh];B[dh];W[dg];B[ch];W[fh];B[cf];W[de];B[ee];W[ce];B[cd];W[])""",
     ]
-    
+
     for i in range(count):
         # Repeat the template games with minor changes to simulate varied play
         game_template = games[i % len(games)]
@@ -55,14 +55,35 @@ def create_synthetic_sgf_dataset(directory: Path, count: int = 15) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Mugo Phase 11 Model Bootstrapping & Distillation")
-    parser.add_argument("--sgf-dir", type=str, default="", help="Directory of SGF files to parse")
-    parser.add_argument("--output-dataset-dir", type=str, default="", help="Directory to save converted NPZ files")
-    parser.add_argument("--resume-from", type=str, required=True, help="Base MLX checkpoint to load weights from")
-    parser.add_argument("--save-checkpoint", type=str, required=True, help="Path to save distilled/bootstrapped checkpoint")
+    parser = argparse.ArgumentParser(
+        description="Mugo Phase 11 Model Bootstrapping & Distillation"
+    )
+    parser.add_argument(
+        "--sgf-dir", type=str, default="", help="Directory of SGF files to parse"
+    )
+    parser.add_argument(
+        "--output-dataset-dir",
+        type=str,
+        default="",
+        help="Directory to save converted NPZ files",
+    )
+    parser.add_argument(
+        "--resume-from",
+        type=str,
+        required=True,
+        help="Base MLX checkpoint to load weights from",
+    )
+    parser.add_argument(
+        "--save-checkpoint",
+        type=str,
+        required=True,
+        help="Path to save distilled/bootstrapped checkpoint",
+    )
     parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate")
     parser.add_argument("--batch-size", type=int, default=32, help="Batch size")
-    parser.add_argument("--steps", type=int, default=200, help="Number of training steps")
+    parser.add_argument(
+        "--steps", type=int, default=200, help="Number of training steps"
+    )
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     args = parser.parse_args()
 
@@ -80,26 +101,34 @@ def main() -> None:
     # Resolve SGF and dataset directories
     if not args.sgf_dir:
         sgf_dir = Path("experiments/000_smoke/bootstrap_sgf")
-        print(f"No SGF directory specified. Creating synthetic fallback at {sgf_dir}...")
+        print(
+            f"No SGF directory specified. Creating synthetic fallback at {sgf_dir}..."
+        )
         create_synthetic_sgf_dataset(sgf_dir, count=20)
     else:
         sgf_dir = Path(args.sgf_dir)
-        
+
     if not args.output_dataset_dir:
         dataset_dir = Path("experiments/000_smoke/bootstrap_npz")
     else:
         dataset_dir = Path(args.output_dataset_dir)
-        
+
     dataset_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. Import SGF files into NPZ game records
     print(f"Parsing and translating SGF files from {sgf_dir}...", flush=True)
     t_start = time.time()
     n_imported = import_sgf_directory(sgf_dir, dataset_dir, board_size=9)
-    print(f"Successfully translated {n_imported} SGF expert records in {time.time() - t_start:.2f}s", flush=True)
+    print(
+        f"Successfully translated {n_imported} SGF expert records in {time.time() - t_start:.2f}s",
+        flush=True,
+    )
 
     if n_imported == 0:
-        print("ERROR: No valid SGF files imported. Check directory or board size settings.", file=sys.stderr)
+        print(
+            "ERROR: No valid SGF files imported. Check directory or board size settings.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     # 2. Load dataset
@@ -126,7 +155,9 @@ def main() -> None:
     ) -> tuple[mx.array, tuple[mx.array, mx.array]]:
         # For SGF, is_teacher=True matches the policy target to SGF moves
         # Value head predicts the SGF game outcome
-        loss, pol_loss, val_loss = compute_dense_loss(model, board, mask, mcts_policy, winner, is_teacher)
+        loss, pol_loss, val_loss = compute_dense_loss(
+            model, board, mask, mcts_policy, winner, is_teacher
+        )
         return loss, (pol_loss, val_loss)
 
     loss_and_grad_fn = nn.value_and_grad(model, loss_fn)
@@ -143,7 +174,7 @@ def main() -> None:
             model, board, mask, mcts_policy, winner, is_teacher
         )
         optimizer.update(model, grads)
-        
+
         # Policy accuracy check
         policy_logits, _ = model(board, mask)
         pred_actions = mx.argmax(policy_logits, axis=-1)
@@ -154,11 +185,14 @@ def main() -> None:
 
         return loss, pol_loss, val_loss, accuracy
 
-    print(f"Starting supervised distillation on {mx.default_device()} for {args.steps} steps...", flush=True)
+    print(
+        f"Starting supervised distillation on {mx.default_device()} for {args.steps} steps...",
+        flush=True,
+    )
     t_train = time.time()
-    
+
     batch_iter = dataset.iter_batches(args.batch_size, shuffle=True, augment=True)
-    
+
     losses = []
     policy_losses = []
     value_losses = []
@@ -168,7 +202,9 @@ def main() -> None:
         try:
             batch = next(batch_iter)
         except StopIteration:
-            batch_iter = dataset.iter_batches(args.batch_size, shuffle=True, augment=True)
+            batch_iter = dataset.iter_batches(
+                args.batch_size, shuffle=True, augment=True
+            )
             batch = next(batch_iter)
 
         board = mx.array(batch["board_BHWC"])
@@ -183,7 +219,7 @@ def main() -> None:
         loss, pol_loss, val_loss, accuracy = train_step(
             board, mask, mcts_policy, winner, is_teacher
         )
-        
+
         mx.eval(loss, pol_loss, val_loss, accuracy, model.parameters(), optimizer.state)
 
         losses.append(loss.item())
@@ -200,7 +236,10 @@ def main() -> None:
             )
 
     train_duration = time.time() - t_train
-    print(f"Distillation finished in {train_duration:.1f}s ({train_duration / args.steps:.3f}s/step).", flush=True)
+    print(
+        f"Distillation finished in {train_duration:.1f}s ({train_duration / args.steps:.3f}s/step).",
+        flush=True,
+    )
 
     # Save distilled model
     model.save_weights(str(save_path))
@@ -211,7 +250,9 @@ def main() -> None:
     avg_val = np.mean(value_losses[-50:])
     avg_acc = np.mean(accuracies[-50:])
     print("\nFinal average metrics over last 50 steps:", flush=True)
-    print(f"  Loss: {avg_loss:.4f} (Pol: {avg_pol:.4f}, Val: {avg_val:.4f})", flush=True)
+    print(
+        f"  Loss: {avg_loss:.4f} (Pol: {avg_pol:.4f}, Val: {avg_val:.4f})", flush=True
+    )
     print(f"  SGF Move Acc: {avg_acc:.2%}", flush=True)
 
 

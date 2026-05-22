@@ -6,7 +6,7 @@ readme = "README.md"
 authors = [
     { name = "Nils", email = "ersi.ni@nilbot.net" }
 ]
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 dependencies = [
     "mlx>=0.31.2",
     "mup>=1.0.0",
@@ -21,7 +21,7 @@ dependencies = [
 ]
 
 [project.scripts]
-autogo-mlx = "mugo:main"
+autogo-mlx = "autogo_mlx:main"
 
 [build-system]
 requires = ["setuptools>=61.0.0", "wheel"]
@@ -29,7 +29,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["mugo*"]
+include = ["autogo_mlx*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

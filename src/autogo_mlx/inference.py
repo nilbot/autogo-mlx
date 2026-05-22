@@ -16,7 +16,7 @@ Action indexing matches the model's flat policy head: a board move at
 ``board_size ** 2``. Probabilities in the returned dict are over the legal
 set only and sum to 1. The value is ``P(player-to-move eventually wins)`` in
 ``[0, 1]`` — the same self-perspective convention the value head was trained
-under (cf. :func:`mugo.loss.compute_dense_loss`).
+under (cf. :func:`autogo_mlx.loss.compute_dense_loss`).
 """
 
 from __future__ import annotations
@@ -28,8 +28,8 @@ from pathlib import Path
 import mlx.core as mx
 import numpy as np
 
-from mugo.dataset import _one_hot_board
-from mugo.model import SizeInvariantGoResNet
+from autogo_mlx.dataset import _one_hot_board
+from autogo_mlx.model import SizeInvariantGoResNet
 
 
 class MLXEvaluator:
@@ -76,7 +76,7 @@ class MLXEvaluator:
 
         Args:
             board_HW: ``(board_size, board_size)`` absolute board — ``0``
-                empty, ``1`` BLACK, ``2`` WHITE (the :mod:`mugo.dataset`
+                empty, ``1`` BLACK, ``2`` WHITE (the :mod:`autogo_mlx.dataset`
                 encoding).
             to_play: ``1`` (BLACK) or ``2`` (WHITE), the player to move; the
                 board is one-hot encoded from this player's perspective.

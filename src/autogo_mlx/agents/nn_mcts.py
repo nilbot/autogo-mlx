@@ -7,12 +7,11 @@ Supports both single-position and dynamically-batched leaf-parallel search.
 from __future__ import annotations
 
 from collections.abc import Iterable
-from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple, Union
 
 import numpy as np
 
-from mugo.cpp_bridge import (
+from autogo_mlx.cpp_bridge import (
     PASS_ACTION,
     GoBoard,
     MCTSConfig,
@@ -20,8 +19,8 @@ from mugo.cpp_bridge import (
 )
 
 if TYPE_CHECKING:
-    from mugo.batched_inference import BatchedMLXEvaluator
-    from mugo.inference import MLXEvaluator
+    from autogo_mlx.batched_inference import BatchedMLXEvaluator
+    from autogo_mlx.inference import MLXEvaluator
 
 
 class MLXNNMCTSAgent:
@@ -65,7 +64,8 @@ class MLXNNMCTSAgent:
         # Auto-detect batched execution
         if leaf_batch_size is None:
             # Import dynamically to avoid circular import if needed
-            from mugo.batched_inference import BatchedMLXEvaluator
+            from autogo_mlx.batched_inference import BatchedMLXEvaluator
+
             if isinstance(self.evaluator, BatchedMLXEvaluator):
                 self.leaf_batch_size = 8
             else:
@@ -136,7 +136,9 @@ class MLXNNMCTSAgent:
             }
             return policy_cpp, value_nn
 
-        def batched_evaluator_cb(states: List[GoBoard]) -> List[Tuple[Dict[int, float], float]]:
+        def batched_evaluator_cb(
+            states: List[GoBoard],
+        ) -> List[Tuple[Dict[int, float], float]]:
             """Process a batch of leaf evaluations directly in a single forward pass."""
             eval_inputs = []
             for state in states:
@@ -167,7 +169,7 @@ class MLXNNMCTSAgent:
 
         # 4. Extract action probabilities and selected move
         probs_cpp = tree.get_action_probabilities(self.temperature)
-        
+
         # Build dense policy distribution over actions for GameRecord
         n_actions = self.board_size * self.board_size + 1
         dense_policy = np.zeros(n_actions, dtype=np.float32)
@@ -176,7 +178,7 @@ class MLXNNMCTSAgent:
                 dense_policy[-1] = prob
             else:
                 dense_policy[act_idx] = prob
-        
+
         # Ensure it sums to exactly 1.0
         total_p = dense_policy.sum()
         if total_p > 0:

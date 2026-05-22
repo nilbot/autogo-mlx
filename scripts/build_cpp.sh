@@ -14,11 +14,11 @@ if [ ! -d "$CPP_DIR" ]; then
     exit 1
 fi
 
-cd "$CPP_DIR"
-
-# Get Python executable path from uv virtual environment
+# Get Python executable path from uv virtual environment of the parent workspace
 PYTHON_PATH=$(uv run which python)
 echo "Using Python executable: $PYTHON_PATH"
+
+cd "$CPP_DIR"
 
 # Configure build with CMake
 cmake -S . -B build \

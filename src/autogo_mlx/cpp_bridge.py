@@ -5,7 +5,9 @@ from typing import TYPE_CHECKING, Callable, Dict, List, Tuple
 # Resolve path to the compiled shared library in the build folder of the submodule
 CURRENT_FILE_DIR = Path(__file__).resolve().parent
 REPO_DIR = CURRENT_FILE_DIR.parent.parent
-CPP_BUILD_DIR = REPO_DIR / "third_party" / "autogo" / "src" / "alpha_go" / "cpp" / "build"
+CPP_BUILD_DIR = (
+    REPO_DIR / "third_party" / "autogo" / "src" / "alpha_go" / "cpp" / "build"
+)
 
 if str(CPP_BUILD_DIR) not in sys.path:
     sys.path.append(str(CPP_BUILD_DIR))
@@ -70,7 +72,9 @@ if TYPE_CHECKING:
             num_simulations: int,
             evaluator: Callable[[GoBoard], Tuple[Dict[int, float], float]],
         ) -> Tuple[Dict[int, float], float]: ...
-        def get_action_probabilities(self, temperature: float = 1.0) -> Dict[int, float]: ...
+        def get_action_probabilities(
+            self, temperature: float = 1.0
+        ) -> Dict[int, float]: ...
         def select_action(self, temperature: float = 1.0) -> int: ...
         def tree_size(self) -> int: ...
         def get_root_visit_count(self) -> int: ...
@@ -84,7 +88,9 @@ if TYPE_CHECKING:
             self,
             num_simulations: int,
             leaf_batch_size: int,
-            batched_evaluator: Callable[[List[GoBoard]], List[Tuple[Dict[int, float], float]]],
+            batched_evaluator: Callable[
+                [List[GoBoard]], List[Tuple[Dict[int, float], float]]
+            ],
         ) -> None: ...
 
     PASS_ACTION: int

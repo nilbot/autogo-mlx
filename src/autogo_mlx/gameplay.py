@@ -1,7 +1,7 @@
 """Phase 7b — Gameplay Loop and NPZ Serialization.
 
 Drives Go games between agents and saves them to native NPZ files compliant
-with the upstream Mugo dataset loading format.
+with the upstream AutoGo dataset loading format.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from typing import Any, List, Tuple
 
 import numpy as np
 
-from mugo.cpp_bridge import GoBoard
+from autogo_mlx.cpp_bridge import GoBoard
 
 
 @dataclass
@@ -21,6 +21,7 @@ class GameRecord:
 
     Conforms to the upstream AlphaGo NPZ training and evaluation contract.
     """
+
     board_size: int
     black_agent: str
     white_agent: str
@@ -96,7 +97,10 @@ def play_game(
                 consec_passes = 0
 
             # 4. Record the MCTS search policy
-            if hasattr(agent, "last_mcts_policy") and agent.last_mcts_policy is not None:
+            if (
+                hasattr(agent, "last_mcts_policy")
+                and agent.last_mcts_policy is not None
+            ):
                 policy = agent.last_mcts_policy.copy()
             else:
                 # Fallback to a one-hot distribution on the played action
@@ -107,7 +111,7 @@ def play_game(
                 else:
                     flat_idx = move[0] * board_size + move[1]
                     policy[flat_idx] = 1.0
-            
+
             mcts_policies.append(policy)
             moves.append(move)
             move_count += 1
@@ -116,7 +120,9 @@ def play_game(
                 break
 
         # Collect scoring and final metadata
-        termination = "double_pass" if consec_passes >= 2 or board.is_game_over() else "max_moves"
+        termination = (
+            "double_pass" if consec_passes >= 2 or board.is_game_over() else "max_moves"
+        )
         winner = board.get_winner()
         score = board.score()
 

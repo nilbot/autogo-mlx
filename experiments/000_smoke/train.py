@@ -17,22 +17,39 @@ import mlx.core as mx
 import mlx.nn as nn
 import mlx.optimizers as opt
 
-# Ensure we import from mugo correctly
+# Ensure we import from autogo_mlx correctly
 sys.path.append(str(Path(__file__).resolve().parents[2] / "src"))
 
-from mugo.dataset import GoDataset
-from mugo.loss import compute_dense_loss
-from mugo.model import SizeInvariantGoResNet
+from autogo_mlx.dataset import GoDataset
+from autogo_mlx.loss import compute_dense_loss
+from autogo_mlx.model import SizeInvariantGoResNet
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Mugo Phase 8a Model Trainer")
-    parser.add_argument("--dataset-dir", type=str, required=True, help="Directory containing .npz game files")
-    parser.add_argument("--resume-from", type=str, required=True, help="Checkpoint to resume/load weights from")
-    parser.add_argument("--save-checkpoint", type=str, required=True, help="Path to save trained weights")
+    parser.add_argument(
+        "--dataset-dir",
+        type=str,
+        required=True,
+        help="Directory containing .npz game files",
+    )
+    parser.add_argument(
+        "--resume-from",
+        type=str,
+        required=True,
+        help="Checkpoint to resume/load weights from",
+    )
+    parser.add_argument(
+        "--save-checkpoint",
+        type=str,
+        required=True,
+        help="Path to save trained weights",
+    )
     parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate")
     parser.add_argument("--batch-size", type=int, default=64, help="Batch size")
-    parser.add_argument("--steps", type=int, default=300, help="Number of training steps")
+    parser.add_argument(
+        "--steps", type=int, default=300, help="Number of training steps"
+    )
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     args = parser.parse_args()
 
@@ -51,10 +68,16 @@ def main() -> None:
     print(f"Loading dataset from {dataset_dir}...", flush=True)
     t0 = time.time()
     dataset = GoDataset(dataset_dir, board_size=9, in_memory=True)
-    print(f"Loaded {len(dataset)} positions from dataset in {time.time() - t0:.1f}s", flush=True)
+    print(
+        f"Loaded {len(dataset)} positions from dataset in {time.time() - t0:.1f}s",
+        flush=True,
+    )
 
     if len(dataset) < args.batch_size:
-        print(f"ERROR: Dataset has only {len(dataset)} positions, which is less than batch size {args.batch_size}.", file=sys.stderr)
+        print(
+            f"ERROR: Dataset has only {len(dataset)} positions, which is less than batch size {args.batch_size}.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     # Initialize model and load weights
@@ -75,7 +98,9 @@ def main() -> None:
         winner: mx.array,
         is_teacher: mx.array,
     ) -> tuple[mx.array, tuple[mx.array, mx.array]]:
-        loss, pol_loss, val_loss = compute_dense_loss(model, board, mask, mcts_policy, winner, is_teacher)
+        loss, pol_loss, val_loss = compute_dense_loss(
+            model, board, mask, mcts_policy, winner, is_teacher
+        )
         return loss, (pol_loss, val_loss)
 
     loss_and_grad_fn = nn.value_and_grad(model, loss_fn)
@@ -92,7 +117,7 @@ def main() -> None:
             model, board, mask, mcts_policy, winner, is_teacher
         )
         optimizer.update(model, grads)
-        
+
         # Calculate policy accuracy (teacher samples only)
         policy_logits, _ = model(board, mask)
         pred_actions = mx.argmax(policy_logits, axis=-1)
@@ -102,12 +127,15 @@ def main() -> None:
 
         return loss, pol_loss, val_loss, accuracy
 
-    print(f"Starting training on {mx.default_device()} for {args.steps} steps...", flush=True)
+    print(
+        f"Starting training on {mx.default_device()} for {args.steps} steps...",
+        flush=True,
+    )
     t_train = time.time()
-    
+
     # We will draw batches continuously from an infinite generator loop
     batch_iter = dataset.iter_batches(args.batch_size, shuffle=True, augment=True)
-    
+
     losses = []
     policy_losses = []
     value_losses = []
@@ -118,7 +146,9 @@ def main() -> None:
             batch = next(batch_iter)
         except StopIteration:
             # Recreate generator if we run out of positions
-            batch_iter = dataset.iter_batches(args.batch_size, shuffle=True, augment=True)
+            batch_iter = dataset.iter_batches(
+                args.batch_size, shuffle=True, augment=True
+            )
             batch = next(batch_iter)
 
         # Convert to MLX arrays
@@ -132,7 +162,7 @@ def main() -> None:
         loss, pol_loss, val_loss, accuracy = train_step(
             board, mask, mcts_policy, winner, is_teacher
         )
-        
+
         # Force evaluation of the returned scalars and state updates
         mx.eval(loss, pol_loss, val_loss, accuracy, model.parameters(), optimizer.state)
 
@@ -150,7 +180,10 @@ def main() -> None:
             )
 
     train_duration = time.time() - t_train
-    print(f"Training finished in {train_duration:.1f}s ({train_duration / args.steps:.3f}s/step).", flush=True)
+    print(
+        f"Training finished in {train_duration:.1f}s ({train_duration / args.steps:.3f}s/step).",
+        flush=True,
+    )
 
     # Save model weights
     model.save_weights(str(save_path))
@@ -161,8 +194,10 @@ def main() -> None:
     avg_pol = np.mean(policy_losses[-50:])
     avg_val = np.mean(value_losses[-50:])
     avg_acc = np.mean(accuracies[-50:])
-    print(f"\nFinal average metrics over last 50 steps:", flush=True)
-    print(f"  Loss: {avg_loss:.4f} (Pol: {avg_pol:.4f}, Val: {avg_val:.4f})", flush=True)
+    print("\nFinal average metrics over last 50 steps:", flush=True)
+    print(
+        f"  Loss: {avg_loss:.4f} (Pol: {avg_pol:.4f}, Val: {avg_val:.4f})", flush=True
+    )
     print(f"  Policy Acc: {avg_acc:.2%}", flush=True)
 
 

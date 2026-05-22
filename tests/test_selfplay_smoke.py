@@ -14,12 +14,12 @@ import mlx.core as mx
 import numpy as np
 import pytest
 
-from mugo.agents.nn_mcts import MLXNNMCTSAgent
-from mugo.batched_inference import BatchedMLXEvaluator
-from mugo.dataset import GoDataset
-from mugo.gameplay import play_game, save_game_data
-from mugo.inference import MLXEvaluator
-from mugo.model import SizeInvariantGoResNet
+from autogo_mlx.agents.nn_mcts import MLXNNMCTSAgent
+from autogo_mlx.batched_inference import BatchedMLXEvaluator
+from autogo_mlx.dataset import GoDataset
+from autogo_mlx.gameplay import play_game, save_game_data
+from autogo_mlx.inference import MLXEvaluator
+from autogo_mlx.model import SizeInvariantGoResNet
 
 
 @pytest.fixture
@@ -32,7 +32,9 @@ def dummy_checkpoint(tmp_path: Path) -> Path:
     return checkpoint_path
 
 
-def test_selfplay_smoke_single_evaluator(dummy_checkpoint: Path, tmp_path: Path) -> None:
+def test_selfplay_smoke_single_evaluator(
+    dummy_checkpoint: Path, tmp_path: Path
+) -> None:
     board_size = 9
     evaluator = MLXEvaluator(dummy_checkpoint, board_size)
 
@@ -114,9 +116,13 @@ def test_selfplay_smoke_single_evaluator(dummy_checkpoint: Path, tmp_path: Path)
         white_agent.close()
 
 
-def test_selfplay_smoke_batched_evaluator(dummy_checkpoint: Path, tmp_path: Path) -> None:
+def test_selfplay_smoke_batched_evaluator(
+    dummy_checkpoint: Path, tmp_path: Path
+) -> None:
     board_size = 9
-    evaluator = BatchedMLXEvaluator(dummy_checkpoint, board_size, batch_size=8, timeout_ms=2.0)
+    evaluator = BatchedMLXEvaluator(
+        dummy_checkpoint, board_size, batch_size=8, timeout_ms=2.0
+    )
 
     # 1. Create two agents using the batched evaluator
     black_agent = MLXNNMCTSAgent(

@@ -1,4 +1,4 @@
-"""Phase 3b — synthetic-NPZ smoke for :class:`mugo.dataset.GoDataset`.
+"""Phase 3b — synthetic-NPZ smoke for :class:`autogo_mlx.dataset.GoDataset`.
 
 Writes a tiny NPZ pair into ``tmp_path``, then asserts:
 
@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from mugo.dataset import (
+from autogo_mlx.dataset import (
     BLACK,
     EMPTY,
     WHITE,
@@ -142,9 +142,7 @@ def test_d4_apply_pass_invariant_and_orbit_size() -> None:
         # Pass slot is untouched, regardless of sym.
         np.testing.assert_array_equal(rotated[:, -1], pol[:, -1])
         # Mass per row preserved.
-        np.testing.assert_allclose(
-            rotated.sum(axis=-1), pol.sum(axis=-1), atol=1e-6
-        )
+        np.testing.assert_allclose(rotated.sum(axis=-1), pol.sum(axis=-1), atol=1e-6)
         seen.add(tuple(rotated[0].tolist()))
     # All 8 D4 elements act distinctly on a generic input (with prob ~ 1).
     assert len(seen) == 8

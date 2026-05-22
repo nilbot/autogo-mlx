@@ -1,7 +1,7 @@
 """Phase 3a — Go self-play dataset (NPZ → one-hot batches with D4 augment).
 
 Reads the upstream-compatible NPZ schema and streams batches sized for the
-:class:`mugo.model.SizeInvariantGoResNet` contract:
+:class:`autogo_mlx.model.SizeInvariantGoResNet` contract:
 
 * ``board_BHWC`` is ``(B, board_size, board_size, 3)`` float32, channels in
   ``(empty, self, opponent)`` order, with cells outside the real region
@@ -18,7 +18,7 @@ Reads the upstream-compatible NPZ schema and streams batches sized for the
 * ``is_teacher_B`` is float32 ``(B,)`` 0/1 — used by the loss to mask which
   samples contribute to the policy CE.
 
-NPZ schema accepted (read-side; compatible with upstream and with mugo
+NPZ schema accepted (read-side; compatible with upstream and with autogo_mlx
 self-play once that lands in phase 7):
 
     boards       int8                (N, H, W)          absolute encoding,
@@ -221,9 +221,7 @@ class GoDataset:
 
         current_player = WHITE if local % 2 else BLACK
         winner = self._winner_for_position(data, local, current_player)
-        is_teacher = (
-            bool(data["is_teacher"][local]) if "is_teacher" in data else False
-        )
+        is_teacher = bool(data["is_teacher"][local]) if "is_teacher" in data else False
 
         sample: dict[str, Any] = {
             "board": board,
@@ -245,7 +243,9 @@ class GoDataset:
             return int(game_winner == current_player)
         else:
             unique_vals = set(np.unique(w))
-            is_self_perspective = (unique_vals.issubset({0, 1}) and (0 in unique_vals or len(w) <= 1))
+            is_self_perspective = unique_vals.issubset({0, 1}) and (
+                0 in unique_vals or len(w) <= 1
+            )
             if is_self_perspective:
                 return int(w[local])
             else:
@@ -263,7 +263,11 @@ class GoDataset:
 
         if "mcts_policy" in data and len(data["mcts_policy"]) > 0:
             src = data["mcts_policy"][local].astype(np.float32, copy=False)
-        elif "mcts_visits" in data and "mcts_temperatures" in data and len(data["mcts_visits"]) > 0:
+        elif (
+            "mcts_visits" in data
+            and "mcts_temperatures" in data
+            and len(data["mcts_visits"]) > 0
+        ):
             src = self._policy_from_visits(
                 data["mcts_visits"][local].astype(np.float32, copy=False),
                 float(data["mcts_temperatures"][local]),

@@ -5,7 +5,7 @@ from __future__ import annotations
 import mlx.core as mx
 import numpy as np
 
-from mugo.model import SizeInvariantGoResNet
+from autogo_mlx.model import SizeInvariantGoResNet
 
 
 def test_forward_shapes_and_mask_propagation() -> None:

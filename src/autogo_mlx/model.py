@@ -56,11 +56,14 @@ class MaskedGroupNorm2d(nn.Module):
     different real sizes never mix moments.
     """
 
-    def __init__(self, num_features: int, num_groups: int | None = None,
-                 eps: float = 1e-5) -> None:
+    def __init__(
+        self, num_features: int, num_groups: int | None = None, eps: float = 1e-5
+    ) -> None:
         super().__init__()
         self.num_features = num_features
-        self.num_groups = num_groups if num_groups is not None else min(32, num_features)
+        self.num_groups = (
+            num_groups if num_groups is not None else min(32, num_features)
+        )
         if num_features % self.num_groups != 0:
             raise ValueError(
                 f"num_features={num_features} not divisible by num_groups={self.num_groups}"
@@ -110,9 +113,13 @@ class MaskedResBlock(nn.Module):
     side, which is what we want.
     """
 
-    def __init__(self, channels: int,
-                 norm_cls: Callable[[int], nn.Module] = MaskedGroupNorm2d,
-                 use_se: bool = False, se_reduction: int = 8) -> None:
+    def __init__(
+        self,
+        channels: int,
+        norm_cls: Callable[[int], nn.Module] = MaskedGroupNorm2d,
+        use_se: bool = False,
+        se_reduction: int = 8,
+    ) -> None:
         super().__init__()
         self.conv1 = nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=False)
         self.bn1 = norm_cls(channels)
@@ -151,10 +158,15 @@ class SizeInvariantGoResNet(nn.Module):
     params with GroupNorm, similar with BN.
     """
 
-    def __init__(self, channels: int = 128, n_blocks: int = 10,
-                 value_hidden: int = 64,
-                 norm_type: str = "gn", use_se: bool = False,
-                 se_reduction: int = 8) -> None:
+    def __init__(
+        self,
+        channels: int = 128,
+        n_blocks: int = 10,
+        value_hidden: int = 64,
+        norm_type: str = "gn",
+        use_se: bool = False,
+        se_reduction: int = 8,
+    ) -> None:
         super().__init__()
         if norm_type != "gn":
             # MaskedBatchNorm2d is intentionally not ported in P1a; revisit at
@@ -171,8 +183,9 @@ class SizeInvariantGoResNet(nn.Module):
         self.input_conv = nn.Conv2d(3, channels, kernel_size=3, padding=1, bias=False)
         self.input_bn = norm_cls(channels)
         self.blocks = [
-            MaskedResBlock(channels, norm_cls=norm_cls, use_se=use_se,
-                           se_reduction=se_reduction)
+            MaskedResBlock(
+                channels, norm_cls=norm_cls, use_se=use_se, se_reduction=se_reduction
+            )
             for _ in range(n_blocks)
         ]
 
@@ -206,8 +219,9 @@ class SizeInvariantGoResNet(nn.Module):
         self.value_fc2.weight = mx.zeros(self.value_fc2.weight.shape)
         self.value_fc2.bias = mx.zeros(self.value_fc2.bias.shape)
 
-    def __call__(self, board_BHWC: mx.array, mask_BHW: mx.array | None = None
-                 ) -> tuple[mx.array, mx.array]:
+    def __call__(
+        self, board_BHWC: mx.array, mask_BHW: mx.array | None = None
+    ) -> tuple[mx.array, mx.array]:
         B, H, W, _ = board_BHWC.shape
         if mask_BHW is None:
             mask_BHW1 = mx.ones((B, H, W, 1), dtype=board_BHWC.dtype)

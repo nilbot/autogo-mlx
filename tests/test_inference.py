@@ -13,9 +13,9 @@ import mlx.core as mx
 import numpy as np
 import pytest
 
-from mugo.batched_inference import BatchedMLXEvaluator
-from mugo.inference import MLXEvaluator
-from mugo.model import SizeInvariantGoResNet
+from autogo_mlx.batched_inference import BatchedMLXEvaluator
+from autogo_mlx.inference import MLXEvaluator
+from autogo_mlx.model import SizeInvariantGoResNet
 
 
 @pytest.fixture
@@ -35,7 +35,9 @@ def test_single_and_batched_inference_parity(dummy_checkpoint: Path) -> None:
 
     # 1. Instantiate the unbatched and batched evaluators
     single_eval = MLXEvaluator(dummy_checkpoint, board_size)
-    batched_eval = BatchedMLXEvaluator(dummy_checkpoint, board_size, batch_size=16, timeout_ms=2.0)
+    batched_eval = BatchedMLXEvaluator(
+        dummy_checkpoint, board_size, batch_size=16, timeout_ms=2.0
+    )
 
     try:
         # 2. Generate random positions and legal move subsets
@@ -43,13 +45,13 @@ def test_single_and_batched_inference_parity(dummy_checkpoint: Path) -> None:
         for _ in range(n_positions):
             board_HW = rng.integers(0, 3, size=(board_size, board_size)).astype(np.int8)
             to_play = int(rng.choice([1, 2]))
-            
+
             # Generate random subset of legal moves (always include pass)
             pass_idx = board_size * board_size
             n_legal = rng.integers(1, pass_idx)
             legal_actions = list(rng.choice(pass_idx, size=n_legal, replace=False))
             legal_actions.append(pass_idx)
-            
+
             positions.append((board_HW, to_play, legal_actions))
 
         # 3. Evaluate using the unbatched evaluator (sequentially)
@@ -73,11 +75,11 @@ def test_single_and_batched_inference_parity(dummy_checkpoint: Path) -> None:
             assert abs(single_v - batched_v) < 1e-5, (
                 f"Value mismatch at index {idx}: single={single_v:.6f}, batched={batched_v:.6f}"
             )
-            
+
             assert set(single_p.keys()) == set(batched_p.keys()), (
                 f"Policy actions set mismatch at index {idx}"
             )
-            
+
             for action in single_p:
                 sp = single_p[action]
                 bp = batched_p[action]

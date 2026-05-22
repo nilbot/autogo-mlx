@@ -1,6 +1,6 @@
-# AutoGo — a personal read of the project
+# AutoGo System Overview and Design Philosophy
 
-*Source: [evjang.com/2026/04/28/autogo.html](https://evjang.com/2026/04/28/autogo.html) and [github.com/ericjang/autogo](https://github.com/ericjang/autogo). Written 2026-05-15 as the orientation document for `mugo`, an MLX reimplementation.*
+*Source: [evjang.com/2026/04/28/autogo.html](https://evjang.com/2026/04/28/autogo.html) and [github.com/ericjang/autogo](https://github.com/ericjang/autogo). Written 2026-05-15 as the orientation document for `autogo_mlx`, an MLX reimplementation.*
 
 ## What it actually is
 

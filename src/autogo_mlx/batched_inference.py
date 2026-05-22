@@ -20,13 +20,14 @@ from typing import Any
 import mlx.core as mx
 import numpy as np
 
-from mugo.dataset import _one_hot_board
-from mugo.model import SizeInvariantGoResNet
+from autogo_mlx.dataset import _one_hot_board
+from autogo_mlx.model import SizeInvariantGoResNet
 
 
 @dataclass
 class BatchInferenceRequest:
     """A batch of inference requests submitted by a single search thread."""
+
     boards_HW: list[np.ndarray]
     to_plays: list[int]
     legal_actions_list: list[list[int]]
@@ -192,8 +193,12 @@ class BatchedMLXEvaluator:
         if total_items == 0:
             return
 
-        boards_np = np.empty((total_items, self.board_size, self.board_size, 3), dtype=np.float32)
-        masks_np = np.ones((total_items, self.board_size, self.board_size), dtype=np.float32)
+        boards_np = np.empty(
+            (total_items, self.board_size, self.board_size, 3), dtype=np.float32
+        )
+        masks_np = np.ones(
+            (total_items, self.board_size, self.board_size), dtype=np.float32
+        )
 
         idx = 0
         for r in batch_requests:

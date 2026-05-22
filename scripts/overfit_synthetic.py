@@ -35,13 +35,11 @@ import mlx.optimizers as optim
 import numpy as np
 import tyro
 
-from mugo.loss import compute_dense_loss
-from mugo.model import SizeInvariantGoResNet
+from autogo_mlx.loss import compute_dense_loss
+from autogo_mlx.model import SizeInvariantGoResNet
 
 
-def make_synthetic(
-    n: int, board_size: int, seed: int
-) -> dict[str, np.ndarray]:
+def make_synthetic(n: int, board_size: int, seed: int) -> dict[str, np.ndarray]:
     """Build ``n`` synthetic positions with deterministic labels (numpy host)."""
     rng = np.random.default_rng(seed)
     bs = board_size
@@ -123,7 +121,11 @@ def main(cfg: Config = Config()) -> None:
 
     def loss_fn(
         m: SizeInvariantGoResNet,
-        b: mx.array, mk: mx.array, p: mx.array, w: mx.array, t: mx.array,
+        b: mx.array,
+        mk: mx.array,
+        p: mx.array,
+        w: mx.array,
+        t: mx.array,
     ) -> mx.array:
         return compute_dense_loss(m, b, mk, p, w, t)[0]
 

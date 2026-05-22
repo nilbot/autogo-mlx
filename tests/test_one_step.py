@@ -14,8 +14,8 @@ import mlx.nn as nn
 import mlx.optimizers as optim
 import numpy as np
 
-from mugo.loss import compute_dense_loss
-from mugo.model import SizeInvariantGoResNet
+from autogo_mlx.loss import compute_dense_loss
+from autogo_mlx.model import SizeInvariantGoResNet
 
 
 def test_one_adamw_step_does_not_increase_loss() -> None:
@@ -55,7 +55,9 @@ def test_one_adamw_step_does_not_increase_loss() -> None:
 
     before, after = float(loss_before.item()), float(loss_after.item())
     assert np.isfinite(before) and np.isfinite(after)
-    assert after <= before, f"loss did not decrease: before={before:.4f} after={after:.4f}"
+    assert after <= before, (
+        f"loss did not decrease: before={before:.4f} after={after:.4f}"
+    )
     # Stronger: at zero-init readouts the first step always carves off real
     # value. If it doesn't, something is wired wrong (e.g. grads not flowing).
     assert before - after > 1e-3, (
