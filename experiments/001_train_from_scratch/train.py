@@ -17,8 +17,8 @@ import mlx.core as mx
 import mlx.nn as nn
 import mlx.optimizers as opt
 
-# Ensure we import from autogo_mlx correctly
-sys.path.append(str(Path(__file__).resolve().parents[2] / "src"))
+# Ensure we import from autogo_mlx correctly (prepend to override virtualenv package)
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from autogo_mlx.dataset import GoDataset
 from autogo_mlx.loss import compute_dense_loss
@@ -51,6 +51,7 @@ def main() -> None:
         "--steps", type=int, default=2000, help="Number of training steps"
     )
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--in-channels", type=int, default=8, help="Number of input channels (3 for absolute, 8 for liberties+Ko)")
     args = parser.parse_args()
 
     mx.random.seed(args.seed)
@@ -62,7 +63,7 @@ def main() -> None:
 
     print(f"Loading dataset from {dataset_dir}...", flush=True)
     t0 = time.time()
-    dataset = GoDataset(dataset_dir, board_size=9, in_memory=True)
+    dataset = GoDataset(dataset_dir, board_size=9, in_memory=True, in_channels=args.in_channels)
     print(
         f"Loaded {len(dataset)} positions from dataset in {time.time() - t0:.1f}s",
         flush=True,
@@ -76,7 +77,7 @@ def main() -> None:
         sys.exit(1)
 
     # Initialize model
-    model = SizeInvariantGoResNet(channels=128, n_blocks=10, value_hidden=64)
+    model = SizeInvariantGoResNet(channels=128, n_blocks=10, value_hidden=64, in_channels=args.in_channels)
 
     # Load weights if resume-from is provided and non-empty
     if args.resume_from:

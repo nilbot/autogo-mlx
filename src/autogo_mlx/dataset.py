@@ -115,6 +115,107 @@ def _d4_policy(policy_BA: np.ndarray, sym: int, board_size: int) -> np.ndarray:
     return np.concatenate([pos_flat, policy_BA[..., spatial:]], axis=-1)
 
 
+def _compute_liberties_numpy(board_HW: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Computes liberty planes for the given board.
+    board_HW: (H, W) array with values 0 (empty), 1 (Black), 2 (White)
+    Returns:
+      lib_1, lib_2, lib_3, lib_4plus: (H, W) binary arrays
+    """
+    h, w = board_HW.shape
+    visited = np.zeros((h, w), dtype=bool)
+    
+    lib_1 = np.zeros((h, w), dtype=np.float32)
+    lib_2 = np.zeros((h, w), dtype=np.float32)
+    lib_3 = np.zeros((h, w), dtype=np.float32)
+    lib_4plus = np.zeros((h, w), dtype=np.float32)
+    
+    for r in range(h):
+        for c in range(w):
+            color = board_HW[r, c]
+            if color != 0 and not visited[r, c]:
+                group = []
+                liberties = set()
+                queue = [(r, c)]
+                visited[r, c] = True
+                
+                head = 0
+                while head < len(queue):
+                    curr_r, curr_c = queue[head]
+                    head += 1
+                    group.append((curr_r, curr_c))
+                    
+                    for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                        nr, nc = curr_r + dr, curr_c + dc
+                        if 0 <= nr < h and 0 <= nc < w:
+                            if board_HW[nr, nc] == 0:
+                                liberties.add((nr, nc))
+                            elif board_HW[nr, nc] == color and not visited[nr, nc]:
+                                visited[nr, nc] = True
+                                queue.append((nr, nc))
+                                
+                num_liberties = len(liberties)
+                for gr, gc in group:
+                    if num_liberties == 1:
+                        lib_1[gr, gc] = 1.0
+                    elif num_liberties == 2:
+                        lib_2[gr, gc] = 1.0
+                    elif num_liberties == 3:
+                        lib_3[gr, gc] = 1.0
+                    elif num_liberties >= 4:
+                        lib_4plus[gr, gc] = 1.0
+                        
+    return lib_1, lib_2, lib_3, lib_4plus
+
+
+def _compute_ko_point_numpy(board_curr: np.ndarray, board_prev: np.ndarray, last_move: np.ndarray) -> np.ndarray:
+    """Computes the Ko point binary plane by comparing board states."""
+    h, w = board_curr.shape
+    ko_plane = np.zeros((h, w), dtype=np.float32)
+    if last_move is None or last_move.shape[0] < 2:
+        return ko_plane
+    r, c = int(last_move[0]), int(last_move[1])
+    if r < 0 or c < 0:
+        return ko_plane
+        
+    opponent_color = board_curr[r, c]
+    if opponent_color == 0:
+        return ko_plane
+    player_color = 1 if opponent_color == 2 else 2
+        
+    captured_coords = []
+    for nr in range(h):
+        for nc in range(w):
+            if board_prev[nr, nc] == player_color and board_curr[nr, nc] == 0:
+                captured_coords.append((nr, nc))
+                
+    if len(captured_coords) == 1:
+        visited = np.zeros((h, w), dtype=bool)
+        group = []
+        liberties = set()
+        queue = [(r, c)]
+        visited[r, c] = True
+        
+        head = 0
+        while head < len(queue):
+            curr_r, curr_c = queue[head]
+            head += 1
+            group.append((curr_r, curr_c))
+            for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                nr, nc = curr_r + dr, curr_c + dc
+                if 0 <= nr < h and 0 <= nc < w:
+                    if board_curr[nr, nc] == 0:
+                        liberties.add((nr, nc))
+                    elif board_curr[nr, nc] == opponent_color and not visited[nr, nc]:
+                        visited[nr, nc] = True
+                        queue.append((nr, nc))
+                        
+        if len(group) == 1 and len(liberties) == 1:
+            kr, kc = captured_coords[0]
+            ko_plane[kr, kc] = 1.0
+            
+    return ko_plane
+
+
 class GoDataset:
     """Indexable Go-position dataset over one or more NPZ directories.
 
@@ -136,6 +237,7 @@ class GoDataset:
         board_size: int,
         load_mcts_policy: bool = True,
         in_memory: bool = False,
+        in_channels: int = 8,
     ) -> None:
         dirs = (
             [Path(data_dirs)]
@@ -149,6 +251,7 @@ class GoDataset:
         self.data_dirs = dirs
         self.board_size = int(board_size)
         self.load_mcts_policy = bool(load_mcts_policy)
+        self.in_channels = int(in_channels)
 
         self._files: list[tuple[Path, str, int]] = []
         for d in dirs:
@@ -230,6 +333,34 @@ class GoDataset:
             "is_teacher": is_teacher,
             "current_player": np.int8(current_player),
         }
+        
+        if self.in_channels == 8:
+            lib_1_raw, lib_2_raw, lib_3_raw, lib_4_raw = _compute_liberties_numpy(raw)
+            if local > 0:
+                ko_raw = _compute_ko_point_numpy(raw, data["boards"][local - 1], data["moves"][local - 1])
+            else:
+                ko_raw = np.zeros(raw.shape, dtype=np.float32)
+                
+            lib_1 = np.zeros((bs, bs), dtype=np.float32)
+            lib_2 = np.zeros((bs, bs), dtype=np.float32)
+            lib_3 = np.zeros((bs, bs), dtype=np.float32)
+            lib_4 = np.zeros((bs, bs), dtype=np.float32)
+            ko = np.zeros((bs, bs), dtype=np.float32)
+            
+            lib_1[:h, :w] = lib_1_raw
+            lib_2[:h, :w] = lib_2_raw
+            lib_3[:h, :w] = lib_3_raw
+            lib_4[:h, :w] = lib_4_raw
+            ko[:h, :w] = ko_raw
+            
+            sample.update({
+                "lib_1": lib_1,
+                "lib_2": lib_2,
+                "lib_3": lib_3,
+                "lib_4": lib_4,
+                "ko": ko,
+            })
+
         if self.load_mcts_policy:
             sample["mcts_policy"] = self._policy_for_position(data, local, h, w)
         return sample
@@ -347,15 +478,34 @@ class GoDataset:
             else:
                 policies_BA = np.zeros((b, bs * bs + 1), dtype=np.float32)
 
+            if self.in_channels == 8:
+                lib_1_BHW = np.stack([s["lib_1"] for s in samples])
+                lib_2_BHW = np.stack([s["lib_2"] for s in samples])
+                lib_3_BHW = np.stack([s["lib_3"] for s in samples])
+                lib_4_BHW = np.stack([s["lib_4"] for s in samples])
+                ko_BHW = np.stack([s["ko"] for s in samples])
+
             sym = int(rng.integers(0, 8)) if augment else 0
             if sym:
                 boards_BHW = _d4_apply(boards_BHW, sym)
                 masks_BHW = _d4_apply(masks_BHW, sym)
                 policies_BA = _d4_policy(policies_BA, sym, bs)
+                if self.in_channels == 8:
+                    lib_1_BHW = _d4_apply(lib_1_BHW, sym)
+                    lib_2_BHW = _d4_apply(lib_2_BHW, sym)
+                    lib_3_BHW = _d4_apply(lib_3_BHW, sym)
+                    lib_4_BHW = _d4_apply(lib_4_BHW, sym)
+                    ko_BHW = _d4_apply(ko_BHW, sym)
 
-            board_BHWC = np.zeros((b, bs, bs, 3), dtype=np.float32)
+            board_BHWC = np.zeros((b, bs, bs, self.in_channels), dtype=np.float32)
             for i in range(b):
-                board_BHWC[i] = _one_hot_board(boards_BHW[i], int(current_B[i]))
+                board_BHWC[i, ..., :3] = _one_hot_board(boards_BHW[i], int(current_B[i]))
+                if self.in_channels == 8:
+                    board_BHWC[i, ..., 3] = lib_1_BHW[i]
+                    board_BHWC[i, ..., 4] = lib_2_BHW[i]
+                    board_BHWC[i, ..., 5] = lib_3_BHW[i]
+                    board_BHWC[i, ..., 6] = lib_4_BHW[i]
+                    board_BHWC[i, ..., 7] = ko_BHW[i]
             board_BHWC *= masks_BHW[..., None].astype(np.float32)
 
             yield {

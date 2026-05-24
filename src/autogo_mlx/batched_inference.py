@@ -20,7 +20,8 @@ from typing import Any
 import mlx.core as mx
 import numpy as np
 
-from autogo_mlx.dataset import _one_hot_board
+from autogo_mlx.dataset import _one_hot_board, _compute_liberties_numpy
+from autogo_mlx.inference import _find_ko_point_evaluator
 from autogo_mlx.model import SizeInvariantGoResNet
 
 
@@ -51,6 +52,7 @@ class BatchedMLXEvaluator:
         channels: int = 128,
         n_blocks: int = 10,
         value_hidden: int = 64,
+        in_channels: int = 8,
     ) -> None:
         self.checkpoint_path = Path(checkpoint_path)
         if not self.checkpoint_path.exists():
@@ -60,9 +62,10 @@ class BatchedMLXEvaluator:
         self.n_actions = self.pass_index + 1
         self.batch_size = int(batch_size)
         self.batch_timeout = float(timeout_ms) / 1000.0  # seconds
+        self.in_channels = int(in_channels)
 
         self.model = SizeInvariantGoResNet(
-            channels=channels, n_blocks=n_blocks, value_hidden=value_hidden
+            channels=channels, n_blocks=n_blocks, value_hidden=value_hidden, in_channels=in_channels
         )
         self.model.load_weights(str(self.checkpoint_path))
         self.model.eval()
@@ -194,7 +197,7 @@ class BatchedMLXEvaluator:
             return
 
         boards_np = np.empty(
-            (total_items, self.board_size, self.board_size, 3), dtype=np.float32
+            (total_items, self.board_size, self.board_size, self.in_channels), dtype=np.float32
         )
         masks_np = np.ones(
             (total_items, self.board_size, self.board_size), dtype=np.float32
@@ -202,8 +205,20 @@ class BatchedMLXEvaluator:
 
         idx = 0
         for r in batch_requests:
-            for board, to_play in zip(r.boards_HW, r.to_plays):
-                boards_np[idx] = _one_hot_board(board, to_play)
+            for board, to_play, legal in zip(r.boards_HW, r.to_plays, r.legal_actions_list):
+                if self.in_channels == 8:
+                    lib_1, lib_2, lib_3, lib_4 = _compute_liberties_numpy(board)
+                    ko = _find_ko_point_evaluator(board, to_play, set(legal))
+                    
+                    one_hot = _one_hot_board(board, to_play)
+                    boards_np[idx, ..., :3] = one_hot
+                    boards_np[idx, ..., 3] = lib_1
+                    boards_np[idx, ..., 4] = lib_2
+                    boards_np[idx, ..., 5] = lib_3
+                    boards_np[idx, ..., 6] = lib_4
+                    boards_np[idx, ..., 7] = ko
+                else:
+                    boards_np[idx] = _one_hot_board(board, to_play)
                 idx += 1
 
         board_BHWC = mx.array(boards_np)
