@@ -58,6 +58,32 @@ if [ "$START" -eq 0 ] && [ ! -f "${EXP_DIR}/checkpoints/iter0.safetensors" ]; th
     echo ""
 fi
 
+# ------------------ AUTO-SURGERY DETECTOR ------------------
+# Automatically converts the starting checkpoint from 3-channel to 8-channel if needed
+START_CKPT="${EXP_DIR}/checkpoints/iter${START}.safetensors"
+if [ -f "$START_CKPT" ]; then
+    echo "Checking channels of starting checkpoint ${START_CKPT}..."
+    CHANNELS_IN_FILE=$(uv run python -c "import mlx.core as mx; weights = mx.load('${START_CKPT}'); print(weights['input_conv.weight'].shape[3])")
+    echo "--> Checkpoint has ${CHANNELS_IN_FILE} channels (target: ${IN_CHANNELS})."
+    
+    if [ "$CHANNELS_IN_FILE" -eq 3 ] && [ "$IN_CHANNELS" -eq 8 ]; then
+        echo ""
+        echo "=========================================================="
+        echo "Auto-Surgery: Converting 3-ch checkpoint to 8-ch..."
+        echo "=========================================================="
+        SURGERY_SCRIPT="${EXP_DIR}/../../scripts/weight_surgery.py"
+        TMP_CKPT="${START_CKPT}.tmp"
+        
+        uv run python "$SURGERY_SCRIPT" --input "$START_CKPT" --output "$TMP_CKPT" --in-channels "$IN_CHANNELS"
+        mv "$TMP_CKPT" "$START_CKPT"
+        echo "🟢 Auto-Surgery complete! ${START_CKPT} has been expanded to 8-channel."
+        echo ""
+    elif [ "$CHANNELS_IN_FILE" -ne "$IN_CHANNELS" ]; then
+        echo "ERROR: Channel mismatch. Checkpoint has ${CHANNELS_IN_FILE} channels, but target is ${IN_CHANNELS}."
+        exit 1
+    fi
+fi
+
 # ------------------ REINFORCEMENT LEARNING LOOP ------------------
 for ITER in $(seq "$START" "$END"); do
     echo "=========================================================="
