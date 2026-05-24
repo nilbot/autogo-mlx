@@ -16,8 +16,8 @@ import threading
 
 import mlx.core as mx
 
-# Ensure we import from autogo_mlx correctly
-sys.path.append(str(Path(__file__).resolve().parents[2] / "src"))
+# Ensure we import from autogo_mlx correctly (prepend to override virtualenv package)
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from autogo_mlx.agents.nn_mcts import MLXNNMCTSAgent
 from autogo_mlx.batched_inference import BatchedMLXEvaluator
