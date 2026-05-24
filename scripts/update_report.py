@@ -138,14 +138,15 @@ def parse_training_log(log_path: Path) -> dict:
     }
 
 
-def parse_evaluation_log(log_path: Path) -> dict:
+def parse_evaluation_log(log_path: Path, num_iters: int = 5) -> dict:
+    default_model = f"iter{num_iters}.safetensors"
     if not log_path.exists():
-        return {"status": "Pending", "win_rate": 0.0, "details": "", "model_name": "iter5.safetensors"}
+        return {"status": "Pending", "win_rate": 0.0, "details": "", "model_name": default_model}
 
     content = log_path.read_text()
 
     # Try to parse model name from log
-    model_name = "iter5.safetensors"
+    model_name = default_model
     model_match = re.search(r"Model .*/checkpoints/([^/]+\.safetensors)", content)
     if model_match:
         model_name = model_match.group(1)
@@ -268,7 +269,7 @@ def generate_report(brain_dir: Path | None = None) -> None:
         )
 
     # Evaluation
-    eval_data = parse_evaluation_log(LOG_DIR / "evaluation.log")
+    eval_data = parse_evaluation_log(LOG_DIR / "evaluation.log", num_iters)
     eval_pct = (
         1.0
         if eval_data["status"] == "Completed"
