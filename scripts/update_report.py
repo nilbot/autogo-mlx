@@ -140,9 +140,15 @@ def parse_training_log(log_path: Path) -> dict:
 
 def parse_evaluation_log(log_path: Path) -> dict:
     if not log_path.exists():
-        return {"status": "Pending", "win_rate": 0.0, "details": ""}
+        return {"status": "Pending", "win_rate": 0.0, "details": "", "model_name": "iter5.safetensors"}
 
     content = log_path.read_text()
+
+    # Try to parse model name from log
+    model_name = "iter5.safetensors"
+    model_match = re.search(r"Model .*/checkpoints/([^/]+\.safetensors)", content)
+    if model_match:
+        model_name = model_match.group(1)
 
     finished_match = "Evaluation Complete!" in content
     win_rate_match = re.search(r"Model Wins: \d+ / \d+ \(([\d\.]+)%\)", content)
@@ -159,6 +165,7 @@ def parse_evaluation_log(log_path: Path) -> dict:
             "model_wins": model_wins,
             "random_wins": random_wins,
             "details": f"{model_wins} wins / {random_wins} losses",
+            "model_name": model_name,
         }
 
     if finished_match:
@@ -166,6 +173,7 @@ def parse_evaluation_log(log_path: Path) -> dict:
             "status": "Completed",
             "win_rate": 0.0,
             "details": "Finished but no parseable results",
+            "model_name": model_name,
         }
 
     # Look for current game
@@ -175,9 +183,10 @@ def parse_evaluation_log(log_path: Path) -> dict:
             "status": "In Progress",
             "win_rate": 0.0,
             "details": f"Playing Game {game_matches[-1]}/100",
+            "model_name": model_name,
         }
 
-    return {"status": "Starting", "win_rate": 0.0, "details": ""}
+    return {"status": "Starting", "win_rate": 0.0, "details": "", "model_name": model_name}
 
 
 def make_progress_bar(pct: float) -> str:
@@ -188,6 +197,17 @@ def make_progress_bar(pct: float) -> str:
 
 def generate_report(brain_dir: Path | None = None) -> None:
     print("Compiling active training metrics...", flush=True)
+
+    # Detect total number of iterations dynamically (default to at least 5)
+    num_iters = 5
+    if LOG_DIR.exists():
+        log_files = list(LOG_DIR.glob("collect_iter*.log"))
+        for f in log_files:
+            match = re.search(r"collect_iter(\d+)\.log", f.name)
+            if match:
+                val = int(match.group(1)) + 1
+                if val > num_iters:
+                    num_iters = val
 
     # 1. Parse all stages
     stages = []
@@ -218,8 +238,8 @@ def generate_report(brain_dir: Path | None = None) -> None:
         )
     )
 
-    # Iterations 0-4
-    for i in range(5):
+    # Iterations 0 to num_iters - 1
+    for i in range(num_iters):
         c_log = LOG_DIR / f"collect_iter{i}.log"
         t_log = LOG_DIR / f"train_iter{i + 1}.log"
 
@@ -317,8 +337,8 @@ def generate_report(brain_dir: Path | None = None) -> None:
     if train_durs:
         avg_train_dur = sum(train_durs) / len(train_durs)
 
-    pending_collects = 5 - comp_collects
-    pending_trains = 6 - comp_trains  # 5 iterations + bootstrap
+    pending_collects = num_iters - comp_collects
+    pending_trains = (num_iters + 1) - comp_trains  # num_iters iterations + bootstrap
 
     # Subtract active progress from estimate
     active_collect_pct = 0.0
@@ -365,7 +385,7 @@ This report summarizes the reinforcement learning progress of training `SizeInva
 
 The multi-iteration reinforcement learning training run has completed successfully!
 
-- **Final Evaluation Model**: `iter5.safetensors`
+- **Final Evaluation Model**: `{eval_data.get("model_name", f"iter{num_iters}.safetensors")}`
 - **Evaluation Opponent**: `RandomAgent`
 - **Balanced Match Details**: 100 games (50 Black, 50 White), search noise disabled.
 - **Match Score**: Model **{eval_data.get("model_wins", 0)}** wins, RandomAgent **{eval_data.get("random_wins", 0)}** wins.
@@ -377,7 +397,7 @@ The multi-iteration reinforcement learning training run has completed successful
 - **Bootstrap Iter 0**: Policy Accuracy = {boot_train["acc"]:.2%}, Loss = {boot_train["loss"]:.4f}
 """
         # Add details for other iterations if they completed
-        for i in range(5):
+        for i in range(num_iters):
             t_log = LOG_DIR / f"train_iter{i + 1}.log"
             t_data = parse_training_log(t_log)
             if t_data["status"] == "Completed":
@@ -403,6 +423,8 @@ The orchestrator is currently executing the training loop. Progress is monitored
             eval_data.get("model_wins", 0),
             eval_data.get("random_wins", 0),
             stages,
+            num_iters=num_iters,
+            model_name=eval_data.get("model_name", f"iter{num_iters}.safetensors"),
             brain_dir=brain_dir,
         )
 
@@ -412,6 +434,8 @@ def update_brain_and_repo_artifacts(
     model_wins: int,
     random_wins: int,
     stages: list,
+    num_iters: int,
+    model_name: str,
     brain_dir: Path | None = None,
 ) -> None:
     print("Performing final check-offs and walkthrough updates...", flush=True)
@@ -473,8 +497,8 @@ We have successfully executed the reinforcement learning training run from scrat
 ## 🚀 Key Accomplishments & Metrics
 
 - **Bootstrap Phase**: Generated 1,000 games of random self-play, then trained `iter0.safetensors` on the random game dataset for 2,000 steps.
-- **Reinforcement Learning Loop**: Completed 5 consecutive iterations of selfplay + training. Each iteration collected 1,000 games (64 MCTS simulations/move) and optimized the model for 2,000 steps.
-- **Evaluation Victory**: Evaluated `iter5.safetensors` against the random agent in a 100-game match. The model achieved a **{win_rate:.1f}%** win rate (**{model_wins} wins, {random_wins} losses**), exceeding our success threshold of $\\ge 80\\%$.
+- **Reinforcement Learning Loop**: Completed {num_iters} consecutive iterations of selfplay + training. Each iteration collected 1,000 games (64 MCTS simulations/move) and optimized the model for 2,000 steps.
+- **Evaluation Victory**: Evaluated `{model_name}` against the random agent in a 100-game match. The model achieved a **{win_rate:.1f}%** win rate (**{model_wins} wins, {random_wins} losses**), exceeding our success threshold of $\\ge 80\\%$.
 
 ## Summary of Iteration Progress
 
