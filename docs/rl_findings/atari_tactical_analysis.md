@@ -111,26 +111,44 @@ We evaluated the exact policy priors, value network heads, and MCTS search visit
    With a simulation budget of `n_simulations = 64` (standard for evaluation and play), if a move has a raw prior probability of `0.0145`, **it will never get explored**. 
    MCTS is completely dependent on the policy network's prior to guide its first visits. If the network is blind to escaping, MCTS will not spend even 1 of its 64 simulations checking that move, resulting in total blindness.
 
+   > [!NOTE]
+   > **Thinking Process (Note to Self on Limiting `n_simulations`):**
+   > A restricted simulation budget (e.g., 64) is mathematically essential for fast self-play and evaluation throughput. However, it exposes a deeper, more intrinsic problem: PUCT search acts purely as a local refiner, *not* a global search discoverer. If the prior policy $P(s,a)$ is too low, the exploration term $U(s,a)$ remains suppressed, preventing MCTS from ever allocating its first simulation to critical tactical saving moves. 
+   > Rather than brute-forcing this by increasing `n_simulations` (which drastically slows down execution throughput), we must fix the underlying representation. Boosting the network's architectural capacity to evaluate tactical structures (via handcrafted features) forces the policy prior $P(s,a)$ out of the noise floor (e.g. from 1% to 15%), ensuring that MCTS explores self-defense even when operating under highly restricted simulation budgets.
+
 3. **No Rollout Fallback**:
    The value head `config.lambda_ = 0.0` uses a pure value network without rollouts. If the value head itself hasn't fully converged on recognizing a group in Atari as "dead" (and thus having a lower value), there is no rollout simulation to discover the tactical death downstream.
 
 ---
 
-## 5. Architectural & Training Recommendations
+## 5. Architectural & Training Decisions Made
 
-To fully resolve this issue and align with premium state-of-the-art Go architectures (like KataGo), we recommend the following modifications:
+To fully resolve this issue and align with premium state-of-the-art Go architectures (like KataGo), we have decided to implement **Decisions A and B**, while **dropping C**:
 
-### A. Handcrafted Tactical Features (Highly Recommended)
-Instead of feeding only 3 absolute channels, we can expand the model input representation in `dataset.py` to include:
+### Decision A: Handcrafted Tactical Features (Implemented)
+Instead of feeding only 3 absolute channels, we expanded the model input representation to 8 channels:
 1. **Liberties (Qi)**: 4 binary channels representing whether a stone group has exactly 1, 2, 3, or $\ge 4$ liberties. This immediately removes "Atari blindness" by making liberties linearly readable by the first ResNet layer.
 2. **Ko Points**: 1 channel marking the active Ko point.
 
-### B. Dynamic Temperature Scheduling
+### Decision B: Dynamic Temperature Scheduling (Implemented)
 During self-play data collection:
 * Set `temperature = 1.0` for the first **30 moves** to ensure exploration and variety.
 * Set `temperature = 0.0` (greedy selection) for the rest of the game.
-* *Benefit*: This completely eliminates premature stochastic passes and garbage terminal states, resulting in cleaner value network signals.
+* *Result*: This completely eliminates premature stochastic passes and garbage terminal states, resulting in cleaner value network signals.
 
-### C. Atari / Capture Training Penalty (Heuristic)
-If we want to explicitly penalize/reward capture scenarios, we can inject a auxiliary loss in `loss.py`:
-* Add a secondary head that predicts the number of stones captured on the next turn, or penalize value logits directly when a friendly group is left in Atari without defense. However, adding handcrafted liberties (A) is usually sufficient to let the model learn this naturally.
+### Decision C: Atari / Capture Training Penalty (Dropped)
+We have decided to **drop** the auxiliary loss / capture training penalty heuristic. While injecting artificial penalties can force short-term defense, it risks distorting the value function and introducing unstable training gradients. We prefer the neural network to naturally learn these tactical dynamics from the augmented 8-channel feature representation (Decision A).
+
+---
+
+## 6. Compatibility & Resuming Strategy
+
+### On-the-Fly Feature Extraction
+To integrate 8-channel inputs without breaking compatibility with legacy 3-channel datasets, we designed **On-the-Fly Feature Extraction** inside `GoDataset.iter_batches()`. 
+* **Mechanism**: The raw `.npz` storage schema remains 100% untouched. When loading historic data from `iter0` through `iter7`, the dataloader dynamically computes liberties (via a fast NumPy BFS) and Ko points (comparing adjacent position moves) in-memory before assembling the batches.
+* **Benefit**: We can utilize all past self-play runs for training without needing to slow down collection or recompute/rewrite existing datasets on disk.
+
+### Weight Surgery Strategy
+To avoid having to retrain our model from scratch, we developed a dedicated **Weight Surgery** tool (`scripts/weight_surgery.py`).
+* **Mechanism**: The script reads a mature 3-channel checkpoint (e.g., `iter7.safetensors`) and surgically expands the first convolutional layer (`input_conv.weight`) from shape `(128, 3, 3, 3)` to `(128, 3, 3, 8)`. The learned weights for the original 3 channels are copied exactly, and the 5 new tactical channels are zero-initialized.
+* **Benefit**: The zero-initialization ensures the model's policy prior behaves identically to the 3-channel baseline at the start of training, allowing us to safely "warm-start" or fork the active reinforcement learning run into the 8-channel representation without losing any training progress.
