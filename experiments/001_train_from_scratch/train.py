@@ -17,8 +17,8 @@ import mlx.core as mx
 import mlx.nn as nn
 import mlx.optimizers as opt
 
-# Ensure we import from autogo_mlx correctly (prepend to override virtualenv package)
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+# Ensure we import from autogo_mlx correctly
+sys.path.append(str(Path(__file__).resolve().parents[2] / "src"))
 
 from autogo_mlx.dataset import GoDataset
 from autogo_mlx.loss import compute_dense_loss
