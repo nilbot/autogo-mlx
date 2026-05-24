@@ -6,7 +6,7 @@ This report summarizes the reinforcement learning progress of training `SizeInva
 
 - **Overall Status**: 🟢 Completed
 - **Estimated Remaining Time**: 0m (Finished)
-- **Total Elapsed Execution Time**: 10.66 hours (active)
+- **Total Elapsed Execution Time**: 17.03 hours (active)
 
 ## Stage-by-Stage Progress Table
 
@@ -24,7 +24,13 @@ This report summarizes the reinforcement learning progress of training `SizeInva
 | Iter 4 Training | 🟢 **Completed** | `██████████` 100% | Step 2000/2000 | 410.1s | Loss=3.5509, Acc=24.81% |
 | Iter 4 Self-Play | 🟢 **Completed** | `██████████` 100% | 1000/1000 games | 7153.4s |  |
 | Iter 5 Training | 🟢 **Completed** | `██████████` 100% | Step 2000/2000 | 409.2s | Loss=3.4203, Acc=34.50% |
-| Final Evaluation | 🟢 **Completed** | `██████████` 100% | 99 wins / 1 losses | — | Win Rate=99.0% |
+| Iter 5 Self-Play | 🟢 **Completed** | `██████████` 100% | 1000/1000 games | 7103.4s |  |
+| Iter 6 Training | 🟢 **Completed** | `██████████` 100% | Step 2000/2000 | 440.4s | Loss=3.2221, Acc=45.19% |
+| Iter 6 Self-Play | 🟢 **Completed** | `██████████` 100% | 1000/1000 games | 7188.8s |  |
+| Iter 7 Training | 🟢 **Completed** | `██████████` 100% | Step 2000/2000 | 447.0s | Loss=2.9730, Acc=53.44% |
+| Iter 7 Self-Play | 🟢 **Completed** | `██████████` 100% | 1000/1000 games | 7288.6s |  |
+| Iter 8 Training | 🟢 **Completed** | `██████████` 100% | Step 2000/2000 | 448.6s | Loss=2.6223, Acc=62.20% |
+| Final Evaluation | 🟢 **Completed** | `██████████` 100% | 100 wins / 0 losses | — | Win Rate=100.0% |
 
 ## Summary & Key Metrics
 
@@ -32,11 +38,11 @@ This report summarizes the reinforcement learning progress of training `SizeInva
 
 The multi-iteration reinforcement learning training run has completed successfully!
 
-- **Final Evaluation Model**: `iter5.safetensors`
+- **Final Evaluation Model**: `iter8.safetensors`
 - **Evaluation Opponent**: `RandomAgent`
 - **Balanced Match Details**: 100 games (50 Black, 50 White), search noise disabled.
-- **Match Score**: Model **99** wins, RandomAgent **1** wins.
-- **Final Evaluation Win Rate**: **99.0%** (Target: $\ge 80\%$)
+- **Match Score**: Model **100** wins, RandomAgent **0** wins.
+- **Final Evaluation Win Rate**: **100.0%** (Target: $\ge 80\%$)
 - **Outcome Status**: **SUCCESS**
 
 ### Training Convergence Details
@@ -47,3 +53,6 @@ The multi-iteration reinforcement learning training run has completed successful
 - **Iteration 3**: Policy Accuracy = 15.77%, Loss = 3.6607
 - **Iteration 4**: Policy Accuracy = 24.81%, Loss = 3.5509
 - **Iteration 5**: Policy Accuracy = 34.50%, Loss = 3.4203
+- **Iteration 6**: Policy Accuracy = 45.19%, Loss = 3.2221
+- **Iteration 7**: Policy Accuracy = 53.44%, Loss = 2.9730
+- **Iteration 8**: Policy Accuracy = 62.20%, Loss = 2.6223
