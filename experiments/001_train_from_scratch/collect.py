@@ -114,6 +114,7 @@ def main() -> None:
         help="Number of concurrent gameplay threads",
     )
     parser.add_argument("--seed", type=int, default=42, help="Base random seed")
+    parser.add_argument("--in-channels", type=int, default=8, help="Number of input channels")
     args = parser.parse_args()
 
     checkpoint_path = Path(args.checkpoint)
@@ -129,7 +130,7 @@ def main() -> None:
             )
             checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
             mx.random.seed(args.seed)
-            model = SizeInvariantGoResNet(channels=128, n_blocks=10, value_hidden=64)
+            model = SizeInvariantGoResNet(channels=128, n_blocks=10, value_hidden=64, in_channels=args.in_channels)
             model.save_weights(str(checkpoint_path))
             print(f"Saved initial random checkpoint to {checkpoint_path}", flush=True)
         else:
@@ -156,6 +157,7 @@ def main() -> None:
         board_size=args.board_size,
         batch_size=64,
         timeout_ms=1.0,
+        in_channels=args.in_channels,
     )
 
     # 3. Dispatch games to thread pool

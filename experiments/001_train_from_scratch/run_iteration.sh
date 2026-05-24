@@ -8,8 +8,9 @@ set -euo pipefail
 EXP_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORKSPACE_ROOT="$(cd "${EXP_DIR}/../.." && pwd)"
 
-START=${1:?Usage: run_iteration.sh <start_iter> <end_iter>}
-END=${2:?Usage: run_iteration.sh <start_iter> <end_iter>}
+START=${1:?Usage: run_iteration.sh <start_iter> <end_iter> [in_channels]}
+END=${2:?Usage: run_iteration.sh <start_iter> <end_iter> [in_channels]}
+IN_CHANNELS=${3:-8}
 
 mkdir -p "${EXP_DIR}/checkpoints"
 mkdir -p "${EXP_DIR}/logs"
@@ -49,6 +50,7 @@ if [ "$START" -eq 0 ] && [ ! -f "${EXP_DIR}/checkpoints/iter0.safetensors" ]; th
         --lr 1e-3 \
         --batch-size 64 \
         --seed 42 \
+        --in-channels "$IN_CHANNELS" \
         2>&1 | tee "${EXP_DIR}/logs/bootstrap_train.log"
     t1=$(date +%s)
     echo "--> Bootstrap training took $((t1 - t0)) seconds."
@@ -75,6 +77,7 @@ for ITER in $(seq "$START" "$END"); do
         --save-dir "$DATA_DIR" \
         --num-workers 8 \
         --seed $((42 + ITER * 100)) \
+        --in-channels "$IN_CHANNELS" \
         2>&1 | tee "${EXP_DIR}/logs/collect_iter${ITER}.log"
     t1=$(date +%s)
     echo "--> Game collection took $((t1 - t0)) seconds."
@@ -95,6 +98,7 @@ for ITER in $(seq "$START" "$END"); do
         --lr 1e-3 \
         --batch-size 64 \
         --seed $((42 + ITER * 200)) \
+        --in-channels "$IN_CHANNELS" \
         2>&1 | tee "${EXP_DIR}/logs/train_iter${NEXT}.log"
     t1=$(date +%s)
     echo "--> Training took $((t1 - t0)) seconds."
@@ -114,6 +118,7 @@ uv run python "${EXP_DIR}/evaluate.py" \
     --n-simulations 64 \
     --num-workers 8 \
     --seed 1000 \
+    --in-channels "$IN_CHANNELS" \
     2>&1 | tee "${EXP_DIR}/logs/evaluation.log"
 t1=$(date +%s)
 echo "--> Evaluation took $((t1 - t0)) seconds."

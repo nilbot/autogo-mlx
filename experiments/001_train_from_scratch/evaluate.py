@@ -135,6 +135,7 @@ def main() -> None:
         default=1000,
         help="Base random seed (distinct from collection seed)",
     )
+    parser.add_argument("--in-channels", type=int, default=8, help="Number of input channels")
     args = parser.parse_args()
 
     checkpoint_path = Path(args.checkpoint)
@@ -158,6 +159,7 @@ def main() -> None:
         board_size=args.board_size,
         batch_size=64,
         timeout_ms=1.0,
+        in_channels=args.in_channels,
     )
 
     # 2. Dispatch games to thread pool
