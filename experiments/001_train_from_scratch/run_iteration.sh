@@ -72,7 +72,7 @@ if [ -f "$START_CKPT" ]; then
         echo "Auto-Surgery: Converting 3-ch checkpoint to 8-ch..."
         echo "=========================================================="
         SURGERY_SCRIPT="${EXP_DIR}/../../scripts/weight_surgery.py"
-        TMP_CKPT="${START_CKPT}.tmp"
+        TMP_CKPT="${START_CKPT%.safetensors}_temp_surgery.safetensors"
         
         uv run python "$SURGERY_SCRIPT" --input "$START_CKPT" --output "$TMP_CKPT" --in-channels "$IN_CHANNELS"
         mv "$TMP_CKPT" "$START_CKPT"
