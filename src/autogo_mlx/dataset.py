@@ -294,7 +294,7 @@ class GoDataset:
                         # Legacy format (just integer count). We trust it for backward-compatibility.
                         pass
                 if is_valid:
-                    return {f: (val[0] if isinstance(val, list) else int(val)) for f in files}
+                    return {f: (cached[f][0] if isinstance(cached[f], list) else int(cached[f])) for f in files}
             except Exception:
                 pass
 
