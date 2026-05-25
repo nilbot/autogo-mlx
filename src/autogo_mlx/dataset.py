@@ -115,7 +115,9 @@ def _d4_policy(policy_BA: np.ndarray, sym: int, board_size: int) -> np.ndarray:
     return np.concatenate([pos_flat, policy_BA[..., spatial:]], axis=-1)
 
 
-def _compute_liberties_numpy(board_HW: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def _compute_liberties_numpy(
+    board_HW: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Computes liberty planes for the given board.
     board_HW: (H, W) array with values 0 (empty), 1 (Black), 2 (White)
     Returns:
@@ -123,12 +125,12 @@ def _compute_liberties_numpy(board_HW: np.ndarray) -> tuple[np.ndarray, np.ndarr
     """
     h, w = board_HW.shape
     visited = np.zeros((h, w), dtype=bool)
-    
+
     lib_1 = np.zeros((h, w), dtype=np.float32)
     lib_2 = np.zeros((h, w), dtype=np.float32)
     lib_3 = np.zeros((h, w), dtype=np.float32)
     lib_4plus = np.zeros((h, w), dtype=np.float32)
-    
+
     for r in range(h):
         for c in range(w):
             color = board_HW[r, c]
@@ -137,13 +139,13 @@ def _compute_liberties_numpy(board_HW: np.ndarray) -> tuple[np.ndarray, np.ndarr
                 liberties = set()
                 queue = [(r, c)]
                 visited[r, c] = True
-                
+
                 head = 0
                 while head < len(queue):
                     curr_r, curr_c = queue[head]
                     head += 1
                     group.append((curr_r, curr_c))
-                    
+
                     for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
                         nr, nc = curr_r + dr, curr_c + dc
                         if 0 <= nr < h and 0 <= nc < w:
@@ -152,7 +154,7 @@ def _compute_liberties_numpy(board_HW: np.ndarray) -> tuple[np.ndarray, np.ndarr
                             elif board_HW[nr, nc] == color and not visited[nr, nc]:
                                 visited[nr, nc] = True
                                 queue.append((nr, nc))
-                                
+
                 num_liberties = len(liberties)
                 for gr, gc in group:
                     if num_liberties == 1:
@@ -163,11 +165,13 @@ def _compute_liberties_numpy(board_HW: np.ndarray) -> tuple[np.ndarray, np.ndarr
                         lib_3[gr, gc] = 1.0
                     elif num_liberties >= 4:
                         lib_4plus[gr, gc] = 1.0
-                        
+
     return lib_1, lib_2, lib_3, lib_4plus
 
 
-def _compute_ko_point_numpy(board_curr: np.ndarray, board_prev: np.ndarray, last_move: np.ndarray) -> np.ndarray:
+def _compute_ko_point_numpy(
+    board_curr: np.ndarray, board_prev: np.ndarray, last_move: np.ndarray
+) -> np.ndarray:
     """Computes the Ko point binary plane by comparing board states."""
     h, w = board_curr.shape
     ko_plane = np.zeros((h, w), dtype=np.float32)
@@ -176,25 +180,25 @@ def _compute_ko_point_numpy(board_curr: np.ndarray, board_prev: np.ndarray, last
     r, c = int(last_move[0]), int(last_move[1])
     if r < 0 or c < 0:
         return ko_plane
-        
+
     opponent_color = board_curr[r, c]
     if opponent_color == 0:
         return ko_plane
     player_color = 1 if opponent_color == 2 else 2
-        
+
     captured_coords = []
     for nr in range(h):
         for nc in range(w):
             if board_prev[nr, nc] == player_color and board_curr[nr, nc] == 0:
                 captured_coords.append((nr, nc))
-                
+
     if len(captured_coords) == 1:
         visited = np.zeros((h, w), dtype=bool)
         group = []
         liberties = set()
         queue = [(r, c)]
         visited[r, c] = True
-        
+
         head = 0
         while head < len(queue):
             curr_r, curr_c = queue[head]
@@ -208,11 +212,11 @@ def _compute_ko_point_numpy(board_curr: np.ndarray, board_prev: np.ndarray, last
                     elif board_curr[nr, nc] == opponent_color and not visited[nr, nc]:
                         visited[nr, nc] = True
                         queue.append((nr, nc))
-                        
+
         if len(group) == 1 and len(liberties) == 1:
             kr, kc = captured_coords[0]
             ko_plane[kr, kc] = 1.0
-            
+
     return ko_plane
 
 
@@ -237,7 +241,7 @@ class GoDataset:
         board_size: int,
         load_mcts_policy: bool = True,
         in_memory: bool = False,
-        in_channels: int = 8,
+        in_channels: int = 3,
     ) -> None:
         dirs = (
             [Path(data_dirs)]
@@ -294,7 +298,14 @@ class GoDataset:
                         # Legacy format (just integer count). We trust it for backward-compatibility.
                         pass
                 if is_valid:
-                    return {f: (cached[f][0] if isinstance(cached[f], list) else int(cached[f])) for f in files}
+                    return {
+                        f: (
+                            cached[f][0]
+                            if isinstance(cached[f], list)
+                            else int(cached[f])
+                        )
+                        for f in files
+                    }
             except Exception:
                 pass
 
@@ -353,33 +364,37 @@ class GoDataset:
             "is_teacher": is_teacher,
             "current_player": np.int8(current_player),
         }
-        
+
         if self.in_channels == 8:
             lib_1_raw, lib_2_raw, lib_3_raw, lib_4_raw = _compute_liberties_numpy(raw)
             if local > 0:
-                ko_raw = _compute_ko_point_numpy(raw, data["boards"][local - 1], data["moves"][local - 1])
+                ko_raw = _compute_ko_point_numpy(
+                    raw, data["boards"][local - 1], data["moves"][local - 1]
+                )
             else:
                 ko_raw = np.zeros(raw.shape, dtype=np.float32)
-                
+
             lib_1 = np.zeros((bs, bs), dtype=np.float32)
             lib_2 = np.zeros((bs, bs), dtype=np.float32)
             lib_3 = np.zeros((bs, bs), dtype=np.float32)
             lib_4 = np.zeros((bs, bs), dtype=np.float32)
             ko = np.zeros((bs, bs), dtype=np.float32)
-            
+
             lib_1[:h, :w] = lib_1_raw
             lib_2[:h, :w] = lib_2_raw
             lib_3[:h, :w] = lib_3_raw
             lib_4[:h, :w] = lib_4_raw
             ko[:h, :w] = ko_raw
-            
-            sample.update({
-                "lib_1": lib_1,
-                "lib_2": lib_2,
-                "lib_3": lib_3,
-                "lib_4": lib_4,
-                "ko": ko,
-            })
+
+            sample.update(
+                {
+                    "lib_1": lib_1,
+                    "lib_2": lib_2,
+                    "lib_3": lib_3,
+                    "lib_4": lib_4,
+                    "ko": ko,
+                }
+            )
 
         if self.load_mcts_policy:
             sample["mcts_policy"] = self._policy_for_position(data, local, h, w)
@@ -519,7 +534,9 @@ class GoDataset:
 
             board_BHWC = np.zeros((b, bs, bs, self.in_channels), dtype=np.float32)
             for i in range(b):
-                board_BHWC[i, ..., :3] = _one_hot_board(boards_BHW[i], int(current_B[i]))
+                board_BHWC[i, ..., :3] = _one_hot_board(
+                    boards_BHW[i], int(current_B[i])
+                )
                 if self.in_channels == 8:
                     board_BHWC[i, ..., 3] = lib_1_BHW[i]
                     board_BHWC[i, ..., 4] = lib_2_BHW[i]

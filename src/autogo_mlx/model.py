@@ -166,7 +166,7 @@ class SizeInvariantGoResNet(nn.Module):
         norm_type: str = "gn",
         use_se: bool = False,
         se_reduction: int = 8,
-        in_channels: int = 8,
+        in_channels: int = 3,
     ) -> None:
         super().__init__()
         if norm_type != "gn":
@@ -182,7 +182,9 @@ class SizeInvariantGoResNet(nn.Module):
         self.in_channels = in_channels
 
         norm_cls = MaskedGroupNorm2d
-        self.input_conv = nn.Conv2d(in_channels, channels, kernel_size=3, padding=1, bias=False)
+        self.input_conv = nn.Conv2d(
+            in_channels, channels, kernel_size=3, padding=1, bias=False
+        )
         self.input_bn = norm_cls(channels)
         self.blocks = [
             MaskedResBlock(

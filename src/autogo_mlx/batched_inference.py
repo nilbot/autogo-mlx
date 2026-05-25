@@ -52,7 +52,7 @@ class BatchedMLXEvaluator:
         channels: int = 128,
         n_blocks: int = 10,
         value_hidden: int = 64,
-        in_channels: int = 8,
+        in_channels: int = 3,
     ) -> None:
         self.checkpoint_path = Path(checkpoint_path)
         if not self.checkpoint_path.exists():
@@ -65,7 +65,10 @@ class BatchedMLXEvaluator:
         self.in_channels = int(in_channels)
 
         self.model = SizeInvariantGoResNet(
-            channels=channels, n_blocks=n_blocks, value_hidden=value_hidden, in_channels=in_channels
+            channels=channels,
+            n_blocks=n_blocks,
+            value_hidden=value_hidden,
+            in_channels=in_channels,
         )
         self.model.load_weights(str(self.checkpoint_path))
         self.model.eval()
@@ -197,7 +200,8 @@ class BatchedMLXEvaluator:
             return
 
         boards_np = np.empty(
-            (total_items, self.board_size, self.board_size, self.in_channels), dtype=np.float32
+            (total_items, self.board_size, self.board_size, self.in_channels),
+            dtype=np.float32,
         )
         masks_np = np.ones(
             (total_items, self.board_size, self.board_size), dtype=np.float32
@@ -205,11 +209,13 @@ class BatchedMLXEvaluator:
 
         idx = 0
         for r in batch_requests:
-            for board, to_play, legal in zip(r.boards_HW, r.to_plays, r.legal_actions_list):
+            for board, to_play, legal in zip(
+                r.boards_HW, r.to_plays, r.legal_actions_list
+            ):
                 if self.in_channels == 8:
                     lib_1, lib_2, lib_3, lib_4 = _compute_liberties_numpy(board)
                     ko = _find_ko_point_evaluator(board, to_play, set(legal))
-                    
+
                     one_hot = _one_hot_board(board, to_play)
                     boards_np[idx, ..., :3] = one_hot
                     boards_np[idx, ..., 3] = lib_1

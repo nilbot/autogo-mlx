@@ -25,6 +25,20 @@ from autogo_mlx.loss import compute_dense_loss
 from autogo_mlx.model import SizeInvariantGoResNet
 
 
+def get_cosine_schedule_with_warmup(
+    init_lr: float, warmup_steps: int, total_steps: int
+):
+    import math
+
+    def lr_schedule(step: int):
+        if step < warmup_steps:
+            return mx.array(init_lr * (step / max(1, warmup_steps)))
+        progress = (step - warmup_steps) / max(1, total_steps - warmup_steps)
+        return mx.array(0.5 * init_lr * (1.0 + math.cos(math.pi * progress)))
+
+    return lr_schedule
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Mugo Phase 10 Model Trainer")
     parser.add_argument(
@@ -51,7 +65,12 @@ def main() -> None:
         "--steps", type=int, default=2000, help="Number of training steps"
     )
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
-    parser.add_argument("--in-channels", type=int, default=8, help="Number of input channels (3 for absolute, 8 for liberties+Ko)")
+    parser.add_argument(
+        "--in-channels",
+        type=int,
+        default=8,
+        help="Number of input channels (3 for absolute, 8 for liberties+Ko)",
+    )
     args = parser.parse_args()
 
     mx.random.seed(args.seed)
@@ -63,7 +82,9 @@ def main() -> None:
 
     print(f"Loading dataset from {dataset_dir}...", flush=True)
     t0 = time.time()
-    dataset = GoDataset(dataset_dir, board_size=9, in_memory=True, in_channels=args.in_channels)
+    dataset = GoDataset(
+        dataset_dir, board_size=9, in_memory=True, in_channels=args.in_channels
+    )
     print(
         f"Loaded {len(dataset)} positions from dataset in {time.time() - t0:.1f}s",
         flush=True,
@@ -77,7 +98,9 @@ def main() -> None:
         sys.exit(1)
 
     # Initialize model
-    model = SizeInvariantGoResNet(channels=128, n_blocks=10, value_hidden=64, in_channels=args.in_channels)
+    model = SizeInvariantGoResNet(
+        channels=128, n_blocks=10, value_hidden=64, in_channels=args.in_channels
+    )
 
     # Load weights if resume-from is provided and non-empty
     if args.resume_from:
@@ -100,8 +123,12 @@ def main() -> None:
     model.train()
     mx.eval(model.parameters())
 
-    # Set up optimizer
-    optimizer = opt.AdamW(learning_rate=args.lr, weight_decay=5e-3)
+    # Set up optimizer with Cosine Annealing + Warmup schedule
+    warmup_steps = 200
+    lr_schedule = get_cosine_schedule_with_warmup(
+        init_lr=args.lr, warmup_steps=warmup_steps, total_steps=args.steps
+    )
+    optimizer = opt.AdamW(learning_rate=lr_schedule, weight_decay=5e-3)
 
     # Loss and gradient function
     def loss_fn(
@@ -195,7 +222,8 @@ def main() -> None:
             print(
                 f"Step {step:04d}/{args.steps:04d} | "
                 f"Loss: {roll_loss:.4f} (Pol: {roll_pol:.4f}, Val: {roll_val:.4f}) | "
-                f"Train Policy Acc: {roll_acc:.2%}",
+                f"Train Policy Acc: {roll_acc:.2%} | "
+                f"lr: {optimizer.learning_rate.item():.6f}",
                 flush=True,
             )
 

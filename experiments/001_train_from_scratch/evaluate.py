@@ -135,7 +135,9 @@ def main() -> None:
         default=1000,
         help="Base random seed (distinct from collection seed)",
     )
-    parser.add_argument("--in-channels", type=int, default=8, help="Number of input channels")
+    parser.add_argument(
+        "--in-channels", type=int, default=8, help="Number of input channels"
+    )
     args = parser.parse_args()
 
     checkpoint_path = Path(args.checkpoint)

@@ -25,6 +25,20 @@ from autogo_mlx.loss import compute_dense_loss
 from autogo_mlx.model import SizeInvariantGoResNet
 
 
+def get_cosine_schedule_with_warmup(
+    init_lr: float, warmup_steps: int, total_steps: int
+):
+    import math
+
+    def lr_schedule(step: int):
+        if step < warmup_steps:
+            return mx.array(init_lr * (step / max(1, warmup_steps)))
+        progress = (step - warmup_steps) / max(1, total_steps - warmup_steps)
+        return mx.array(0.5 * init_lr * (1.0 + math.cos(math.pi * progress)))
+
+    return lr_schedule
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Mugo Phase 8a Model Trainer")
     parser.add_argument(
@@ -86,8 +100,12 @@ def main() -> None:
     model.train()
     mx.eval(model.parameters())
 
-    # Set up optimizer
-    optimizer = opt.AdamW(learning_rate=args.lr, weight_decay=5e-3)
+    # Set up optimizer with Cosine Annealing + Warmup schedule
+    warmup_steps = min(200, args.steps // 3)
+    lr_schedule = get_cosine_schedule_with_warmup(
+        init_lr=args.lr, warmup_steps=warmup_steps, total_steps=args.steps
+    )
+    optimizer = opt.AdamW(learning_rate=lr_schedule, weight_decay=5e-3)
 
     # Loss and gradient function
     def loss_fn(
@@ -175,7 +193,8 @@ def main() -> None:
             print(
                 f"Step {step:03d}/{args.steps:03d} | "
                 f"Loss: {loss.item():.4f} (Pol: {pol_loss.item():.4f}, Val: {val_loss.item():.4f}) | "
-                f"Train Policy Acc: {accuracy.item():.2%}",
+                f"Train Policy Acc: {accuracy.item():.2%} | "
+                f"lr: {optimizer.learning_rate.item():.6f}",
                 flush=True,
             )
 

@@ -32,7 +32,9 @@ from autogo_mlx.dataset import _one_hot_board, _compute_liberties_numpy
 from autogo_mlx.model import SizeInvariantGoResNet
 
 
-def _find_ko_point_evaluator(board_HW: np.ndarray, to_play: int, legal_set: set[int]) -> np.ndarray:
+def _find_ko_point_evaluator(
+    board_HW: np.ndarray, to_play: int, legal_set: set[int]
+) -> np.ndarray:
     """Finds Ko point purely from current board state and legal actions."""
     h, w = board_HW.shape
     ko_plane = np.zeros((h, w), dtype=np.float32)
@@ -54,7 +56,6 @@ def _find_ko_point_evaluator(board_HW: np.ndarray, to_play: int, legal_set: set[
     return ko_plane
 
 
-
 class MLXEvaluator:
     """Single-position network evaluator over a fixed (square) board size.
 
@@ -74,7 +75,7 @@ class MLXEvaluator:
         channels: int = 128,
         n_blocks: int = 10,
         value_hidden: int = 64,
-        in_channels: int = 8,
+        in_channels: int = 3,
     ) -> None:
         self.checkpoint_path = Path(checkpoint_path)
         if not self.checkpoint_path.exists():
@@ -85,7 +86,10 @@ class MLXEvaluator:
         self.in_channels = int(in_channels)
 
         self.model = SizeInvariantGoResNet(
-            channels=channels, n_blocks=n_blocks, value_hidden=value_hidden, in_channels=in_channels
+            channels=channels,
+            n_blocks=n_blocks,
+            value_hidden=value_hidden,
+            in_channels=in_channels,
         )
         self.model.load_weights(str(self.checkpoint_path))
         self.model.eval()
@@ -129,16 +133,18 @@ class MLXEvaluator:
         if self.in_channels == 8:
             lib_1, lib_2, lib_3, lib_4 = _compute_liberties_numpy(board_HW)
             ko = _find_ko_point_evaluator(board_HW, to_play, set(legal))
-            
+
             one_hot = _one_hot_board(board_HW, to_play)
-            board_8ch = np.zeros((self.board_size, self.board_size, 8), dtype=np.float32)
+            board_8ch = np.zeros(
+                (self.board_size, self.board_size, 8), dtype=np.float32
+            )
             board_8ch[..., :3] = one_hot
             board_8ch[..., 3] = lib_1
             board_8ch[..., 4] = lib_2
             board_8ch[..., 5] = lib_3
             board_8ch[..., 6] = lib_4
             board_8ch[..., 7] = ko
-            
+
             board_BHWC = mx.array(board_8ch[None])
         else:
             board_BHWC = mx.array(_one_hot_board(board_HW, to_play)[None])
