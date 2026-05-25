@@ -276,10 +276,29 @@ class GoDataset:
         idx_path = data_dir / "index.json"
         files = sorted(p.name for p in data_dir.glob("*.npz"))
         if idx_path.exists():
-            cached = json.loads(idx_path.read_text())
-            if set(cached) == set(files):
-                return {f: int(cached[f]) for f in files}
-        index: dict[str, int] = {}
+            try:
+                cached = json.loads(idx_path.read_text())
+                is_valid = True
+                for f in files:
+                    if f not in cached:
+                        is_valid = False
+                        break
+                    val = cached[f]
+                    if isinstance(val, list):
+                        cached_n, cached_sz = val
+                        current_sz = (data_dir / f).stat().st_size
+                        if cached_sz != current_sz:
+                            is_valid = False
+                            break
+                    else:
+                        # Legacy format (just integer count). We trust it for backward-compatibility.
+                        pass
+                if is_valid:
+                    return {f: (val[0] if isinstance(val, list) else int(val)) for f in files}
+            except Exception:
+                pass
+
+        index: dict[str, list[int]] = {}
         for f in files:
             data = np.load(data_dir / f)
             n = (
@@ -287,9 +306,10 @@ class GoDataset:
                 if "num_moves" in data.files
                 else int(data["boards"].shape[0])
             )
-            index[f] = n
+            sz = (data_dir / f).stat().st_size
+            index[f] = [n, sz]
         idx_path.write_text(json.dumps(index, indent=2))
-        return index
+        return {f: index[f][0] for f in files}
 
     def _load(self, d: Path, fname: str) -> NPZDict:
         if self._cache is not None:
