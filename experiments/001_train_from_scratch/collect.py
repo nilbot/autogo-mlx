@@ -10,7 +10,6 @@ from __future__ import annotations
 import argparse
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 import threading
 import re
@@ -21,9 +20,8 @@ import mlx.core as mx
 # Ensure we import from autogo_mlx correctly
 sys.path.append(str(Path(__file__).resolve().parents[2] / "src"))
 
-from autogo_mlx.agents.nn_mcts import MLXNNMCTSAgent
 from autogo_mlx.batched_inference import BatchedMLXEvaluator
-from autogo_mlx.gameplay import play_game, save_game_data, play_vectorized_games
+from autogo_mlx.gameplay import save_game_data, play_vectorized_games
 from autogo_mlx.model import SizeInvariantGoResNet
 
 progress_lock = threading.Lock()
