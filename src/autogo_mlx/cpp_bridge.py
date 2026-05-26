@@ -93,6 +93,20 @@ if TYPE_CHECKING:
             ],
         ) -> None: ...
 
+    class VectorizedMCTS:
+        def __init__(self, root_states: List[GoBoard], config: MCTSConfig) -> None: ...
+        def run_simulations(
+            self,
+            num_simulations: int,
+            evaluator: Callable[
+                [List[GoBoard]], List[Tuple[Dict[int, float], float]]
+            ],
+        ) -> None: ...
+        def get_action_probabilities(
+            self, temperature: float = 1.0
+        ) -> List[Dict[int, float]]: ...
+        def select_actions(self, temperature: float = 1.0) -> List[int]: ...
+
     PASS_ACTION: int
 
     def run_mcts(
@@ -108,5 +122,6 @@ else:
     GoBoard = alpha_go_cpp.GoBoard
     MCTSConfig = alpha_go_cpp.MCTSConfig
     MCTSTree = alpha_go_cpp.MCTSTree
+    VectorizedMCTS = alpha_go_cpp.VectorizedMCTS
     PASS_ACTION = alpha_go_cpp.PASS_ACTION
     run_mcts = alpha_go_cpp.run_mcts

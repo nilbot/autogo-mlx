@@ -12,7 +12,7 @@ from typing import Any, List, Tuple
 
 import numpy as np
 
-from autogo_mlx.cpp_bridge import GoBoard
+from autogo_mlx.cpp_bridge import GoBoard, MCTSConfig, VectorizedMCTS
 
 
 @dataclass
@@ -190,3 +190,155 @@ def save_game_data(record: GameRecord, filepath: str | Path) -> None:
         board_size=record.board_size,
         num_moves=n_moves,
     )
+
+
+def play_vectorized_games(
+    black_evaluators: List[Any],
+    white_evaluators: List[Any],
+    board_size: int = 9,
+    max_moves: int = 250,
+    seed: int = 42,
+    n_simulations: int = 16,
+    c_puct: float = 1.5,
+    dirichlet_alpha: float = 0.3,
+) -> List[GameRecord]:
+    """Play a batch of games simultaneously using VectorizedMCTS.
+
+    Eliminates GIL callback bottlenecks by running all MCTS searches and GPU
+    evaluations in a single thread synchronously.
+    """
+    B = len(black_evaluators)
+    boards = [GoBoard(board_size) for _ in range(B)]
+
+    records = [
+        GameRecord(
+            board_size=board_size,
+            black_agent="VectorizedMCTS",
+            white_agent="VectorizedMCTS",
+        )
+        for _ in range(B)
+    ]
+
+    active_indices = list(range(B))
+    consec_passes = [0] * B
+    move_counts = [0] * B
+
+    config = MCTSConfig()
+    config.c_puct = c_puct
+    config.dirichlet_alpha = dirichlet_alpha
+    config.dirichlet_weight = 0.25 if dirichlet_alpha > 0.0 else 0.0
+    config.temperature = 1.0  # static search temperature (distribution retrieved at 1.0)
+    config.lambda_ = 0.0      # pure value network
+
+    pass_index = board_size * board_size
+
+    while active_indices:
+        # 1. Group active games by their current evaluator to support mixed matches
+        groups = {}
+        for idx in active_indices:
+            board = boards[idx]
+            current_player = board.to_play()
+            evaluator = black_evaluators[idx] if current_player == GoBoard.BLACK else white_evaluators[idx]
+            groups.setdefault(evaluator, []).append((idx, board))
+
+        # 2. For each group, perform vectorized MCTS search
+        for evaluator, game_tuples in groups.items():
+            group_indices = [t[0] for t in game_tuples]
+            group_boards = [t[1] for t in game_tuples]
+
+            # Create C++ VectorizedMCTS
+            vector_mcts = VectorizedMCTS(group_boards, config)
+
+            # Define Python callback for this group
+            def batched_evaluator_cb(states: List[GoBoard]) -> List[Tuple[Dict[int, float], float]]:
+                eval_inputs = []
+                for state in states:
+                    board_HW = state.to_numpy()
+                    to_play = state.to_play()
+                    legal_flat = state.get_legal_moves_flat()
+                    legal_actions_nn = legal_flat + [pass_index]
+                    eval_inputs.append((board_HW, to_play, legal_actions_nn))
+                return evaluator.evaluate_batch(eval_inputs)
+
+            # Run simulations
+            vector_mcts.run_simulations(n_simulations, batched_evaluator_cb)
+
+            # Get visit distributions for all games in the group
+            probs_list = vector_mcts.get_action_probabilities(1.0)
+
+            # Choose action and record policy for each game in the group
+            for idx, board, probs_cpp in zip(group_indices, group_boards, probs_list):
+                move_count = move_counts[idx]
+                game_seed = seed + idx * 500 + move_count
+
+                # Temperature scheduling: 1.0 for first moves, then 0.0 (greedy)
+                temp_threshold = 10 if board_size <= 9 else 30
+                temperature = 1.0 if move_count < temp_threshold else 0.0
+
+                # Build dense policy distribution over actions for GameRecord
+                n_actions = board_size * board_size + 1
+                dense_policy = np.zeros(n_actions, dtype=np.float32)
+                for act_idx, prob in probs_cpp.items():
+                    if act_idx == -1: # PASS_ACTION in C++ Go
+                        dense_policy[-1] = prob
+                    else:
+                        dense_policy[act_idx] = prob
+
+                # Normalize dense policy
+                total_p = dense_policy.sum()
+                if total_p > 0:
+                    dense_policy /= total_p
+
+                # Apply temperature to select the final action index
+                if temperature == 0.0:
+                    action_idx = int(np.argmax(dense_policy))
+                else:
+                    rng = np.random.default_rng(game_seed)
+                    action_idx = rng.choice(n_actions, p=dense_policy)
+
+                # Map action index to coordinates
+                if action_idx == pass_index:
+                    move = (-1, -1)
+                else:
+                    move = (action_idx // board_size, action_idx % board_size)
+
+                # 3. Record board state before the move
+                records[idx].boards.append(board.to_numpy().copy())
+                records[idx].mcts_policies.append(dense_policy)
+                records[idx].moves.append(move)
+
+                # 4. Play the move on the board
+                if move == (-1, -1):
+                    board.pass_move()
+                    consec_passes[idx] += 1
+                else:
+                    board.play(move[0], move[1])
+                    consec_passes[idx] = 0
+
+                move_counts[idx] += 1
+
+        # 5. Clean up completed games
+        next_active = []
+        for idx in active_indices:
+            board = boards[idx]
+            if board.is_game_over() or consec_passes[idx] >= 2 or move_counts[idx] >= max_moves:
+                termination = "double_pass" if consec_passes[idx] >= 2 or board.is_game_over() else "max_moves"
+                winner = board.get_winner()
+                score = board.score()
+
+                if score > 0:
+                    result = f"B+{score:.1f}"
+                elif score < 0:
+                    result = f"W+{-score:.1f}"
+                else:
+                    result = "Draw"
+
+                records[idx].winner = winner
+                records[idx].result = result
+                records[idx].num_moves = move_counts[idx]
+                records[idx].termination = termination
+            else:
+                next_active.append(idx)
+        active_indices = next_active
+
+    return records

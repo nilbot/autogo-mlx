@@ -23,7 +23,7 @@ sys.path.append(str(Path(__file__).resolve().parents[2] / "src"))
 
 from autogo_mlx.agents.nn_mcts import MLXNNMCTSAgent
 from autogo_mlx.batched_inference import BatchedMLXEvaluator
-from autogo_mlx.gameplay import play_game, save_game_data
+from autogo_mlx.gameplay import play_game, save_game_data, play_vectorized_games
 from autogo_mlx.model import SizeInvariantGoResNet
 
 # Thread-safe counter for progress tracking
@@ -31,73 +31,7 @@ progress_lock = threading.Lock()
 games_completed = 0
 
 
-def play_single_game(
-    game_idx: int,
-    evaluator: BatchedMLXEvaluator,
-    historical_evaluator: BatchedMLXEvaluator | None,
-    n_simulations: int,
-    save_dir: Path,
-    board_size: int,
-    seed: int,
-) -> None:
-    global games_completed
-    game_seed = seed + game_idx
-
-    # Determine which evaluator each agent uses (league play check)
-    black_eval = evaluator
-    white_eval = evaluator
-
-    if historical_evaluator is not None:
-        rng = np.random.default_rng(game_seed)
-        p_history = 0.20
-        if rng.random() < p_history:
-            if rng.random() < 0.5:
-                black_eval = historical_evaluator
-            else:
-                white_eval = historical_evaluator
-
-    # Create distinct agents sharing the same thread-safe batched evaluator(s)
-    black_agent = MLXNNMCTSAgent(
-        evaluator=black_eval,
-        n_simulations=n_simulations,
-        c_puct=1.5,  # higher PUCT for exploration during collection
-        dirichlet_alpha=0.3,
-        temperature=1.0,
-        leaf_batch_size=8,
-    )
-    white_agent = MLXNNMCTSAgent(
-        evaluator=white_eval,
-        n_simulations=n_simulations,
-        c_puct=1.5,
-        dirichlet_alpha=0.3,
-        temperature=1.0,
-        leaf_batch_size=8,
-    )
-
-    try:
-        record = play_game(
-            black_agent=black_agent,
-            white_agent=white_agent,
-            board_size=board_size,
-            max_moves=250,  # sensible max limit for 9x9 games
-            seed=game_seed,
-        )
-
-        # Save game record to compressed NPZ
-        filepath = save_dir / f"game_{game_idx:04d}.npz"
-        save_game_data(record, filepath)
-
-        with progress_lock:
-            games_completed += 1
-            print(
-                f"[{games_completed:03d}] Game {game_idx:03d} finished: "
-                f"winner={record.winner} (moves={record.num_moves}, result={record.result})",
-                flush=True,
-            )
-
-    finally:
-        black_agent.close()
-        white_agent.close()
+# play_single_game has been replaced by synchronous play_vectorized_games.
 
 
 def main() -> None:
@@ -229,24 +163,54 @@ def main() -> None:
         timeout_ms=1.0,
     )
 
-    # 3. Dispatch games to thread pool
+    # 3. Play vectorized games synchronously in batches on the main thread
     try:
-        with ThreadPoolExecutor(max_workers=args.num_workers) as executor:
-            futures = [
-                executor.submit(
-                    play_single_game,
-                    game_idx=i,
-                    evaluator=evaluator,
-                    historical_evaluator=historical_evaluator,
-                    n_simulations=args.n_simulations,
-                    save_dir=save_dir,
-                    board_size=args.board_size,
-                    seed=args.seed,
-                )
-                for i in range(args.num_games)
-            ]
-            for fut in as_completed(futures):
-                fut.result()  # raise exceptions if any thread failed
+        global games_completed
+        batch_size = 64
+        while games_completed < args.num_games:
+            current_batch_size = min(batch_size, args.num_games - games_completed)
+
+            black_evals = []
+            white_evals = []
+            for i in range(current_batch_size):
+                game_idx = games_completed + i
+                b_eval = evaluator
+                w_eval = evaluator
+                if historical_evaluator is not None:
+                    rng = np.random.default_rng(args.seed + game_idx)
+                    if rng.random() < 0.20:
+                        if rng.random() < 0.5:
+                            b_eval = historical_evaluator
+                        else:
+                            w_eval = historical_evaluator
+                black_evals.append(b_eval)
+                white_evals.append(w_eval)
+
+            records = play_vectorized_games(
+                black_evaluators=black_evals,
+                white_evaluators=white_evals,
+                board_size=args.board_size,
+                max_moves=250,
+                seed=args.seed + games_completed,
+                n_simulations=args.n_simulations,
+                c_puct=1.5,
+                dirichlet_alpha=0.3,
+            )
+
+            for i, record in enumerate(records):
+                game_idx = games_completed + i
+                filepath = save_dir / f"game_{game_idx:04d}.npz"
+                save_game_data(record, filepath)
+
+            games_completed += current_batch_size
+            print(
+                f"[{games_completed:04d}/{args.num_games:04d}] Vectorized selfplay games completed.",
+                flush=True,
+            )
+
+    except KeyboardInterrupt:
+        print("\nAborted by user.", flush=True)
+        sys.exit(1)
     finally:
         evaluator.close()
         if historical_evaluator is not None:
