@@ -141,32 +141,38 @@ def parse_training_log(log_path: Path) -> dict:
 def parse_evaluation_log(log_path: Path, num_iters: int = 5) -> dict:
     default_model = f"iter{num_iters}.safetensors"
     if not log_path.exists():
-        return {"status": "Pending", "win_rate": 0.0, "details": "", "model_name": default_model}
+        return {"status": "Pending", "win_rate": 0.0, "details": "", "model_name": default_model, "opponent_name": "RandomAgent"}
 
     content = log_path.read_text()
 
-    # Try to parse model name from log
+    # Try to parse model name and opponent name from log
     model_name = default_model
     model_match = re.search(r"Model .*/checkpoints/([^/]+\.safetensors)", content)
     if model_match:
         model_name = model_match.group(1)
 
+    opp_name = "RandomAgent"
+    opp_name_match = re.search(r"Starting evaluation match: Model .* vs (.*)", content)
+    if opp_name_match:
+        opp_name = opp_name_match.group(1).strip()
+
     finished_match = "Evaluation Complete!" in content
     win_rate_match = re.search(r"Model Wins: \d+ / \d+ \(([\d\.]+)%\)", content)
     model_wins_match = re.search(r"Model Wins: (\d+) / (\d+)", content)
-    random_wins_match = re.search(r"Random Wins: (\d+) / (\d+)", content)
+    opp_wins_match = re.search(r"(?:Random|RandomAgent|Opponent \(.*?\))\s+Wins:\s+(\d+)\s+/\s+(\d+)", content)
 
-    if finished_match and win_rate_match and model_wins_match and random_wins_match:
+    if finished_match and win_rate_match and model_wins_match and opp_wins_match:
         win_rate = float(win_rate_match.group(1))
         model_wins = int(model_wins_match.group(1))
-        random_wins = int(random_wins_match.group(1))
+        opponent_wins = int(opp_wins_match.group(1))
         return {
             "status": "Completed",
             "win_rate": win_rate,
             "model_wins": model_wins,
-            "random_wins": random_wins,
-            "details": f"{model_wins} wins / {random_wins} losses",
+            "random_wins": opponent_wins,
+            "details": f"{model_wins} wins / {opponent_wins} losses",
             "model_name": model_name,
+            "opponent_name": opp_name,
         }
 
     if finished_match:
@@ -175,6 +181,7 @@ def parse_evaluation_log(log_path: Path, num_iters: int = 5) -> dict:
             "win_rate": 0.0,
             "details": "Finished but no parseable results",
             "model_name": model_name,
+            "opponent_name": opp_name,
         }
 
     # Look for current game
@@ -185,9 +192,10 @@ def parse_evaluation_log(log_path: Path, num_iters: int = 5) -> dict:
             "win_rate": 0.0,
             "details": f"Playing Game {game_matches[-1]}/100",
             "model_name": model_name,
+            "opponent_name": opp_name,
         }
 
-    return {"status": "Starting", "win_rate": 0.0, "details": "", "model_name": model_name}
+    return {"status": "Starting", "win_rate": 0.0, "details": "", "model_name": model_name, "opponent_name": opp_name}
 
 
 def make_progress_bar(pct: float) -> str:
@@ -382,15 +390,16 @@ This report summarizes the reinforcement learning progress of training `SizeInva
         success_str = (
             "SUCCESS" if eval_data["win_rate"] >= 80.0 else "INSUFFICIENT_WINRATE"
         )
+        opp_name = eval_data.get("opponent_name", "RandomAgent")
         report_content += f"""### 🎉 Execution Completed!
 
 The multi-iteration reinforcement learning training run has completed successfully!
 
 - **Final Evaluation Model**: `{eval_data.get("model_name", f"iter{num_iters}.safetensors")}`
-- **Evaluation Opponent**: `RandomAgent`
+- **Evaluation Opponent**: `{opp_name}`
 - **Balanced Match Details**: 100 games (50 Black, 50 White), search noise disabled.
-- **Match Score**: Model **{eval_data.get("model_wins", 0)}** wins, RandomAgent **{eval_data.get("random_wins", 0)}** wins.
-- **Final Evaluation Win Rate**: **{eval_data.get("win_rate", 0.0):.1f}%** (Target: $\\ge 80\\%$)
+- **Match Score**: Model **{eval_data.get("model_wins", 0)}** wins, {opp_name} **{eval_data.get("random_wins", 0)}** wins.
+- **Final Evaluation Win Rate**: **{eval_data.get("win_rate", 0.0):.1f}%** (Target: $\ge 80\%$)
 - **Outcome Status**: **{success_str}**
 
 ### Training Convergence Details
@@ -420,12 +429,13 @@ The orchestrator is currently executing the training loop. Progress is monitored
     # 4. If Completed, update task.md, walkthrough.md, and PORT_PLAN.md!
     if eval_data["status"] == "Completed":
         update_brain_and_repo_artifacts(
-            eval_data.get("win_rate", 0.0),
-            eval_data.get("model_wins", 0),
-            eval_data.get("random_wins", 0),
-            stages,
+            win_rate=eval_data.get("win_rate", 0.0),
+            model_wins=eval_data.get("model_wins", 0),
+            random_wins=eval_data.get("random_wins", 0),
+            stages=stages,
             num_iters=num_iters,
             model_name=eval_data.get("model_name", f"iter{num_iters}.safetensors"),
+            opponent_name=eval_data.get("opponent_name", "RandomAgent"),
             brain_dir=brain_dir,
         )
 
@@ -437,6 +447,7 @@ def update_brain_and_repo_artifacts(
     stages: list,
     num_iters: int,
     model_name: str,
+    opponent_name: str = "RandomAgent",
     brain_dir: Path | None = None,
 ) -> None:
     print("Performing final check-offs and walkthrough updates...", flush=True)
@@ -499,7 +510,7 @@ We have successfully executed the reinforcement learning training run from scrat
 
 - **Bootstrap Phase**: Generated 1,000 games of random self-play, then trained `iter0.safetensors` on the random game dataset for 2,000 steps.
 - **Reinforcement Learning Loop**: Completed {num_iters} consecutive iterations of selfplay + training. Each iteration collected 1,000 games (64 MCTS simulations/move) and optimized the model for 2,000 steps.
-- **Evaluation Victory**: Evaluated `{model_name}` against the random agent in a 100-game match. The model achieved a **{win_rate:.1f}%** win rate (**{model_wins} wins, {random_wins} losses**), exceeding our success threshold of $\\ge 80\\%$.
+- **Evaluation Victory**: Evaluated `{model_name}` against `{opponent_name}` in a 100-game match. The model achieved a **{win_rate:.1f}%** win rate (**{model_wins} wins, {random_wins} losses**), exceeding our success threshold of $\ge 80\%$.
 
 ## Summary of Iteration Progress
 

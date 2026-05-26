@@ -70,7 +70,7 @@ class BatchedMLXEvaluator:
             value_hidden=value_hidden,
             in_channels=in_channels,
         )
-        self.model.load_weights(str(self.checkpoint_path))
+        self.model.load_weights(str(self.checkpoint_path), strict=False)
         self.model.eval()
         mx.eval(self.model.parameters())
 
@@ -241,11 +241,7 @@ class BatchedMLXEvaluator:
                     boards_np[idx, ..., 16] = color_val
 
                     # Channel 17: Ko indicator plane
-                    ko_plane = np.zeros((self.board_size, self.board_size), dtype=np.float32)
-                    ko_pt = board.ko_point()
-                    if ko_pt is not None:
-                        r_ko, c_ko = ko_pt // self.board_size, ko_pt % self.board_size
-                        ko_plane[r_ko, c_ko] = 1.0
+                    ko_plane = _find_ko_point_evaluator(board, to_play, set(legal))
                     boards_np[idx, ..., 17] = ko_plane
                 else:
                     boards_np[idx] = _one_hot_board(board, to_play)

@@ -66,21 +66,23 @@ if [ -f "$START_CKPT" ]; then
     CHANNELS_IN_FILE=$(uv run python -c "import mlx.core as mx; weights = mx.load('${START_CKPT}'); print(weights['input_conv.weight'].shape[3])")
     echo "--> Checkpoint has ${CHANNELS_IN_FILE} channels (target: ${IN_CHANNELS})."
     
-    if [ "$CHANNELS_IN_FILE" -eq 3 ] && [ "$IN_CHANNELS" -eq 8 ]; then
-        echo ""
-        echo "=========================================================="
-        echo "Auto-Surgery: Converting 3-ch checkpoint to 8-ch..."
-        echo "=========================================================="
-        SURGERY_SCRIPT="${EXP_DIR}/../../scripts/weight_surgery.py"
-        TMP_CKPT="${START_CKPT%.safetensors}_temp_surgery.safetensors"
-        
-        uv run python "$SURGERY_SCRIPT" --input "$START_CKPT" --output "$TMP_CKPT" --in-channels "$IN_CHANNELS"
-        mv "$TMP_CKPT" "$START_CKPT"
-        echo "🟢 Auto-Surgery complete! ${START_CKPT} has been expanded to 8-channel."
-        echo ""
-    elif [ "$CHANNELS_IN_FILE" -ne "$IN_CHANNELS" ]; then
-        echo "ERROR: Channel mismatch. Checkpoint has ${CHANNELS_IN_FILE} channels, but target is ${IN_CHANNELS}."
-        exit 1
+    if [ "$CHANNELS_IN_FILE" -ne "$IN_CHANNELS" ]; then
+        if [ "$CHANNELS_IN_FILE" -lt "$IN_CHANNELS" ]; then
+            echo ""
+            echo "=========================================================="
+            echo "Auto-Surgery: Converting ${CHANNELS_IN_FILE}-ch checkpoint to ${IN_CHANNELS}-ch..."
+            echo "=========================================================="
+            SURGERY_SCRIPT="${EXP_DIR}/../../scripts/weight_surgery.py"
+            TMP_CKPT="${START_CKPT%.safetensors}_temp_surgery.safetensors"
+            
+            uv run python "$SURGERY_SCRIPT" --input "$START_CKPT" --output "$TMP_CKPT" --in-channels "$IN_CHANNELS"
+            mv "$TMP_CKPT" "$START_CKPT"
+            echo "🟢 Auto-Surgery complete! ${START_CKPT} has been expanded to ${IN_CHANNELS}-channel."
+            echo ""
+        else
+            echo "ERROR: Channel mismatch. Checkpoint has ${CHANNELS_IN_FILE} channels, but target is ${IN_CHANNELS}."
+            exit 1
+        fi
     fi
 fi
 
@@ -136,12 +138,22 @@ done
 
 # ------------------ EVALUATION PHASE ------------------
 FINAL_CKPT="${EXP_DIR}/checkpoints/iter$((END + 1)).safetensors"
+OPPONENT_FLAGS=""
+OPPONENT_NAME="RandomAgent"
+
+START_CKPT="${EXP_DIR}/checkpoints/iter${START}.safetensors"
+if [ -f "$START_CKPT" ]; then
+    OPPONENT_FLAGS="--opponent-checkpoint ${START_CKPT}"
+    OPPONENT_NAME="iter${START}.safetensors (starting baseline)"
+fi
+
 echo "=========================================================="
-echo "Final Evaluation: Model ${FINAL_CKPT} vs RandomAgent"
+echo "Final Evaluation: Model ${FINAL_CKPT} vs ${OPPONENT_NAME}"
 echo "=========================================================="
 t0=$(date +%s)
 uv run python "${EXP_DIR}/evaluate.py" \
     --checkpoint "$FINAL_CKPT" \
+    ${OPPONENT_FLAGS} \
     --num-games 100 \
     --n-simulations 64 \
     --num-workers 8 \

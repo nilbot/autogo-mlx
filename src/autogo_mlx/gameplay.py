@@ -210,6 +210,7 @@ def play_vectorized_games(
     Eliminates GIL callback bottlenecks by running all MCTS searches and GPU
     evaluations in a single thread synchronously.
     """
+    import time
     B = len(black_evaluators)
     boards = [GoBoard(board_size) for _ in range(B)]
 
@@ -225,6 +226,7 @@ def play_vectorized_games(
     active_indices = list(range(B))
     consec_passes = [0] * B
     move_counts = [0] * B
+    step_count = 0
 
     config = MCTSConfig()
     config.c_puct = c_puct
@@ -236,6 +238,7 @@ def play_vectorized_games(
     pass_index = board_size * board_size
 
     while active_indices:
+        step_start_time = time.perf_counter()
         # 1. Group active games by their current evaluator to support mixed matches
         groups = {}
         for idx in active_indices:
@@ -344,5 +347,15 @@ def play_vectorized_games(
             else:
                 next_active.append(idx)
         active_indices = next_active
+
+        # Expose MCTS step statistics to the log
+        step_count += 1
+        step_duration = time.perf_counter() - step_start_time
+        if step_count == 1 or step_count % 5 == 0 or not active_indices:
+            print(
+                f"   [Vectorized MCTS] Step {step_count:03d}: {len(active_indices):02d} games active. "
+                f"Step time: {step_duration * 1000:.1f}ms. Total moves played: {sum(move_counts)}",
+                flush=True
+            )
 
     return records

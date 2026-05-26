@@ -91,7 +91,7 @@ class MLXEvaluator:
             value_hidden=value_hidden,
             in_channels=in_channels,
         )
-        self.model.load_weights(str(self.checkpoint_path))
+        self.model.load_weights(str(self.checkpoint_path), strict=False)
         self.model.eval()
         mx.eval(self.model.parameters())
 

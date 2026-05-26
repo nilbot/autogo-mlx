@@ -193,6 +193,10 @@ def main() -> None:
                 black_evals.append(b_eval)
                 white_evals.append(w_eval)
 
+            print(
+                f"--> Starting batch of {current_batch_size} vectorized games (games {games_completed} to {games_completed + current_batch_size - 1})...",
+                flush=True,
+            )
             records = play_vectorized_games(
                 black_evaluators=black_evals,
                 white_evaluators=white_evals,

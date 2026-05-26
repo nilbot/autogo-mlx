@@ -10,6 +10,7 @@ Utilizes the BatchedMLXEvaluator for concurrent GPU/Metal evaluation.
 from __future__ import annotations
 
 import argparse
+import mlx.core as mx
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -28,17 +29,19 @@ from autogo_mlx.gameplay import play_game
 progress_lock = threading.Lock()
 games_completed = 0
 model_wins = 0
-random_wins = 0
+opponent_wins = 0
 
 
 def play_single_game(
     game_idx: int,
     evaluator: BatchedMLXEvaluator,
+    opponent_evaluator: BatchedMLXEvaluator | None,
     n_simulations: int,
     board_size: int,
     seed: int,
+    opp_name: str,
 ) -> None:
-    global games_completed, model_wins, random_wins
+    global games_completed, model_wins, opponent_wins
     game_seed = seed + game_idx
 
     # Model MCTS agent: Dirichlet noise is disabled (dirichlet_alpha=0.0)
@@ -52,20 +55,30 @@ def play_single_game(
         leaf_batch_size=8,
     )
 
-    random_agent = RandomAgent(board_size=board_size)
+    if opponent_evaluator is not None:
+        opponent_agent = MLXNNMCTSAgent(
+            evaluator=opponent_evaluator,
+            n_simulations=n_simulations,
+            c_puct=1.0,
+            dirichlet_alpha=0.0,
+            temperature=0.1,
+            leaf_batch_size=8,
+        )
+    else:
+        opponent_agent = RandomAgent(board_size=board_size)
 
     # Alternate colors
     model_plays_black = game_idx % 2 == 0
 
     if model_plays_black:
         black_agent = model_agent
-        white_agent = random_agent
+        white_agent = opponent_agent
         black_name = "Model (MCTS)"
-        white_name = "Random"
+        white_name = opp_name
     else:
-        black_agent = random_agent
+        black_agent = opponent_agent
         white_agent = model_agent
-        black_name = "Random"
+        black_name = opp_name
         white_name = "Model (MCTS)"
 
     try:
@@ -78,7 +91,6 @@ def play_single_game(
         )
 
         # Determine who won
-        # record.winner is 1 for BLACK, 2 for WHITE
         model_won = False
         if record.winner == 1 and model_plays_black:
             model_won = True
@@ -91,8 +103,8 @@ def play_single_game(
                 model_wins += 1
                 outcome_str = "MODEL won"
             else:
-                random_wins += 1
-                outcome_str = "RANDOM won"
+                opponent_wins += 1
+                outcome_str = f"{opp_name.upper()} won"
 
             print(
                 f"[{games_completed:03d}/100] Game {game_idx:03d} finished: "
@@ -103,7 +115,7 @@ def play_single_game(
 
     finally:
         model_agent.close()
-        random_agent.close()
+        opponent_agent.close()
 
 
 def main() -> None:
@@ -138,6 +150,12 @@ def main() -> None:
     parser.add_argument(
         "--in-channels", type=int, default=8, help="Number of input channels"
     )
+    parser.add_argument(
+        "--opponent-checkpoint",
+        type=str,
+        default="",
+        help="Path to opponent MLX model weights (.safetensors). If empty, plays against RandomAgent.",
+    )
     args = parser.parse_args()
 
     checkpoint_path = Path(args.checkpoint)
@@ -145,8 +163,29 @@ def main() -> None:
         print(f"ERROR: Checkpoint file not found: {checkpoint_path}", file=sys.stderr)
         sys.exit(1)
 
+    opp_evaluator = None
+    opp_name = "RandomAgent"
+    if args.opponent_checkpoint:
+        opp_path = Path(args.opponent_checkpoint)
+        if not opp_path.exists():
+            print(f"ERROR: Opponent checkpoint not found: {opp_path}", file=sys.stderr)
+            sys.exit(1)
+        
+        # Dynamically detect shape of opponent input layer
+        opp_weights = mx.load(str(opp_path))
+        opp_in_channels = opp_weights["input_conv.weight"].shape[3]
+        opp_name = f"Opponent ({opp_path.name})"
+        
+        opp_evaluator = BatchedMLXEvaluator(
+            checkpoint_path=opp_path,
+            board_size=args.board_size,
+            batch_size=64,
+            timeout_ms=1.0,
+            in_channels=opp_in_channels,
+        )
+
     print(
-        f"Starting evaluation match: Model {checkpoint_path} vs RandomAgent", flush=True
+        f"Starting evaluation match: Model {checkpoint_path} vs {opp_name}", flush=True
     )
     print(
         f"Config: games={args.num_games}, simulations={args.n_simulations}, workers={args.num_workers}, seed={args.seed}",
@@ -172,9 +211,11 @@ def main() -> None:
                     play_single_game,
                     game_idx=i,
                     evaluator=evaluator,
+                    opponent_evaluator=opp_evaluator,
                     n_simulations=args.n_simulations,
                     board_size=args.board_size,
                     seed=args.seed,
+                    opp_name=opp_name,
                 )
                 for i in range(args.num_games)
             ]
@@ -185,6 +226,8 @@ def main() -> None:
         sys.exit(1)
     finally:
         evaluator.close()
+        if opp_evaluator is not None:
+            opp_evaluator.close()
 
     duration = time.time() - t0
     win_rate = (model_wins / args.num_games) * 100
@@ -194,7 +237,7 @@ def main() -> None:
     print(f"Total time elapsed: {duration:.1f} seconds", flush=True)
     print(f"Model Wins: {model_wins} / {args.num_games} ({win_rate:.2f}%)", flush=True)
     print(
-        f"Random Wins: {random_wins} / {args.num_games} ({100 - win_rate:.2f}%)",
+        f"{opp_name} Wins: {opponent_wins} / {args.num_games} ({100 - win_rate:.2f}%)",
         flush=True,
     )
     print("==========================================================", flush=True)

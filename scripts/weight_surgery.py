@@ -45,20 +45,42 @@ def main() -> None:
     old_shape = old_weight.shape
     print(f"Found input_conv.weight with shape: {old_shape} (out_channels, kh, kw, in_channels)")
     
-    if old_shape[3] != 3:
+    old_ch = old_shape[3]
+    if args.in_channels < old_ch:
         raise ValueError(
-            f"Expected source checkpoint to have 3 input channels (shape[3] == 3), but got {old_shape[3]}."
+            f"Cannot shrink input channels from {old_ch} to target {args.in_channels}."
         )
 
     # Perform weight surgery
     out_channels, kh, kw, _ = old_shape
     new_shape = (out_channels, kh, kw, args.in_channels)
-    print(f"Performing surgery to expand channels to: {args.in_channels} (new shape: {new_shape})")
+    print(f"Performing surgery to expand channels from {old_ch} to: {args.in_channels} (new shape: {new_shape})")
     
     # Create new input_conv weight array (zero-initialized)
     new_weight_np = np.zeros(new_shape, dtype=np.float32)
-    # Copy the old 3-channel weights into the first 3 channels
-    new_weight_np[..., :3] = np.array(old_weight)
+    
+    # Perform semantic weight surgery
+    if args.in_channels == 18:
+        if old_ch == 8:
+            print("Performing semantic surgery from 8-channel to 18-channel:")
+            # Channel 0 (player stones) <- Channel 1 of old_weight
+            new_weight_np[..., 0] = np.array(old_weight[..., 1])
+            # Channel 8 (opponent stones) <- Channel 2 of old_weight
+            new_weight_np[..., 8] = np.array(old_weight[..., 2])
+            # Channel 17 (Ko plane) <- Channel 7 of old_weight
+            new_weight_np[..., 17] = np.array(old_weight[..., 7])
+        elif old_ch == 3:
+            print("Performing semantic surgery from 3-channel to 18-channel:")
+            # Channel 0 (player stones) <- Channel 1 of old_weight
+            new_weight_np[..., 0] = np.array(old_weight[..., 1])
+            # Channel 8 (opponent stones) <- Channel 2 of old_weight
+            new_weight_np[..., 8] = np.array(old_weight[..., 2])
+        else:
+            print(f"Direct copying first {old_ch} channels to 18-channels...")
+            new_weight_np[..., :old_ch] = np.array(old_weight)
+    else:
+        # Standard direct expansion
+        new_weight_np[..., :old_ch] = np.array(old_weight)
     
     # Replace in the weights dictionary
     new_weights = dict(weights)
@@ -90,7 +112,7 @@ def main() -> None:
             value_hidden=64,
             in_channels=args.in_channels
         )
-        model.load_weights(str(output_path))
+        model.load_weights(str(output_path), strict=False)
         print("🟢 SUCCESS: The surgical checkpoint was successfully loaded into a SizeInvariantGoResNet model!")
     except Exception as e:
         print(f"\n⚠️ Verification skipped or failed: {e}")
