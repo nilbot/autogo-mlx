@@ -32,7 +32,7 @@ for ITER in $(seq "$START" "$END"); do
         DATA_DIR="${EXP_DIR}/selfplay/iter0"
         
         echo "--> Phase 8a: Self-Play Game Collection (Iteration 0)"
-        echo "Playing 200 games with 64 simulations using MCTS on Apple Silicon..."
+        echo "Playing 200 games with progressive MCTS simulations and opponent pooling..."
         
         t0=$(date +%s)
         uv run python "${EXP_DIR}/collect.py" \
@@ -42,6 +42,8 @@ for ITER in $(seq "$START" "$END"); do
             --save-dir "$DATA_DIR" \
             --num-workers 8 \
             --seed 42 \
+            --progressive-sims \
+            --opponent-pool-dir "${EXP_DIR}/checkpoints" \
             2>&1 | tee "${EXP_DIR}/logs/collect_iter${ITER}.log"
         t1=$(date +%s)
         

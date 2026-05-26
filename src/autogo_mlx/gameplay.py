@@ -79,9 +79,11 @@ def play_game(
             current_player = board.to_play()
             agent = black_agent if current_player == GoBoard.BLACK else white_agent
 
-            # Dynamic temperature scheduling: 1.0 for first 30 moves, then 0.0 (greedy)
+            # Dynamic temperature scheduling: 1.0 for early moves, then 0.0 (greedy)
+            # Use a threshold of 10 moves for 9x9 or smaller boards, and 30 moves for larger boards.
+            temp_threshold = 10 if board_size <= 9 else 30
             if hasattr(agent, "temperature"):
-                agent.temperature = 1.0 if move_count < 30 else 0.0
+                agent.temperature = 1.0 if move_count < temp_threshold else 0.0
 
             # 2. Query move selection
             agent_seed = (seed + move_count) if seed is not None else None

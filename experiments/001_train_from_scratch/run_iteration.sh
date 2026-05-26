@@ -94,7 +94,7 @@ for ITER in $(seq "$START" "$END"); do
     CKPT="${EXP_DIR}/checkpoints/iter${ITER}.safetensors"
     DATA_DIR="${EXP_DIR}/selfplay/iter${ITER}"
     
-    echo "--> Collection: playing 1000 games with 64 MCTS simulations..."
+    echo "--> Collection: playing 1000 games with progressive MCTS simulations and opponent pooling..."
     t0=$(date +%s)
     uv run python "${EXP_DIR}/collect.py" \
         --checkpoint "$CKPT" \
@@ -104,6 +104,8 @@ for ITER in $(seq "$START" "$END"); do
         --num-workers 8 \
         --seed $((42 + ITER * 100)) \
         --in-channels "$IN_CHANNELS" \
+        --progressive-sims \
+        --opponent-pool-dir "${EXP_DIR}/checkpoints" \
         2>&1 | tee "${EXP_DIR}/logs/collect_iter${ITER}.log"
     t1=$(date +%s)
     echo "--> Game collection took $((t1 - t0)) seconds."

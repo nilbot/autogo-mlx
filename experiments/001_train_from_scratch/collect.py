@@ -13,6 +13,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 import threading
+import re
+import numpy as np
 
 import mlx.core as mx
 
@@ -31,6 +33,7 @@ games_completed = 0
 def play_single_game(
     game_idx: int,
     evaluator: BatchedMLXEvaluator,
+    historical_evaluator: BatchedMLXEvaluator | None,
     n_simulations: int,
     save_dir: Path,
     board_size: int,
@@ -39,9 +42,22 @@ def play_single_game(
     global games_completed
     game_seed = seed + game_idx
 
-    # Create distinct agents sharing the same thread-safe batched evaluator
+    # Determine which evaluator each agent uses (league play check)
+    black_eval = evaluator
+    white_eval = evaluator
+
+    if historical_evaluator is not None:
+        rng = np.random.default_rng(game_seed)
+        p_history = 0.20
+        if rng.random() < p_history:
+            if rng.random() < 0.5:
+                black_eval = historical_evaluator
+            else:
+                white_eval = historical_evaluator
+
+    # Create distinct agents sharing the same thread-safe batched evaluator(s)
     black_agent = MLXNNMCTSAgent(
-        evaluator=evaluator,
+        evaluator=black_eval,
         n_simulations=n_simulations,
         c_puct=1.5,  # higher PUCT for exploration during collection
         dirichlet_alpha=0.3,
@@ -49,7 +65,7 @@ def play_single_game(
         leaf_batch_size=8,
     )
     white_agent = MLXNNMCTSAgent(
-        evaluator=evaluator,
+        evaluator=white_eval,
         n_simulations=n_simulations,
         c_puct=1.5,
         dirichlet_alpha=0.3,
@@ -117,6 +133,17 @@ def main() -> None:
     parser.add_argument(
         "--in-channels", type=int, default=8, help="Number of input channels"
     )
+    parser.add_argument(
+        "--progressive-sims",
+        action="store_true",
+        help="Enable progressive MCTS simulation count based on iteration number",
+    )
+    parser.add_argument(
+        "--opponent-pool-dir",
+        type=str,
+        default=None,
+        help="Directory of past checkpoints to enable league play / opponent pool",
+    )
     args = parser.parse_args()
 
     checkpoint_path = Path(args.checkpoint)
@@ -144,6 +171,53 @@ def main() -> None:
             sys.exit(1)
 
     print(f"Starting self-play collection using {checkpoint_path}", flush=True)
+
+    # 1.5. Check for progressive simulations and opponent pool
+    if args.progressive_sims:
+        match = re.search(r"iter(\d+)", checkpoint_path.name)
+        if match:
+            iteration = int(match.group(1))
+            if iteration < 4:
+                args.n_simulations = 16
+            elif iteration < 8:
+                args.n_simulations = 32
+            else:
+                args.n_simulations = 64
+            print(f"--> Progressive sims enabled. Iteration {iteration} -> {args.n_simulations} simulations.", flush=True)
+        else:
+            print("--> Progressive sims enabled, but could not parse iteration index from checkpoint filename.", flush=True)
+
+    historical_evaluator = None
+    if args.opponent_pool_dir:
+        pool_dir = Path(args.opponent_pool_dir)
+        if pool_dir.exists():
+            past_ckpts = sorted([p for p in pool_dir.glob("iter*.safetensors") if p.exists()])
+            match = re.search(r"iter(\d+)", checkpoint_path.name)
+            if match:
+                current_iter = int(match.group(1))
+                valid_past = []
+                for p in past_ckpts:
+                    m = re.search(r"iter(\d+)", p.name)
+                    if m and int(m.group(1)) < current_iter:
+                        valid_past.append(p)
+                if valid_past:
+                    chosen_past = np.random.choice(valid_past)
+                    # Dynamically detect channel shape of historical checkpoint
+                    past_weights = mx.load(str(chosen_past))
+                    past_in_channels = past_weights["input_conv.weight"].shape[3]
+                    print(f"--> League play enabled: Selected historical opponent {chosen_past.name} ({past_in_channels}-channel model)", flush=True)
+                    historical_evaluator = BatchedMLXEvaluator(
+                        checkpoint_path=chosen_past,
+                        board_size=args.board_size,
+                        batch_size=64,
+                        timeout_ms=1.0,
+                        in_channels=past_in_channels,
+                    )
+                else:
+                    print("--> League play enabled, but no historical checkpoints found with iteration index less than current.", flush=True)
+            else:
+                print("--> League play enabled, but could not parse iteration index from current checkpoint filename.", flush=True)
+
     print(
         f"Config: num-games={args.num_games}, simulations={args.n_simulations}, workers={args.num_workers}",
         flush=True,
@@ -172,6 +246,7 @@ def main() -> None:
                     play_single_game,
                     game_idx=i,
                     evaluator=evaluator,
+                    historical_evaluator=historical_evaluator,
                     n_simulations=args.n_simulations,
                     save_dir=save_dir,
                     board_size=args.board_size,
@@ -186,6 +261,8 @@ def main() -> None:
         sys.exit(1)
     finally:
         evaluator.close()
+        if historical_evaluator is not None:
+            historical_evaluator.close()
 
     duration = time.time() - t0
     print(

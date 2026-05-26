@@ -6,10 +6,18 @@ By leveraging Apple Silicon's unified memory architecture, Metal-accelerated GPU
 
 ---
 
+## 🎉 Milestone Achieved: Converged RL Self-Play
+We have successfully completed our core milestone: **Reinforcement Learning from scratch on Apple Silicon**, producing an agent (`iter12`) with a **99.0%** win rate against a random opponent after 24 hours of local selfplay training. The port is now fully completed, verified, and ready for further exploration!
+
+We are now actively developing enhancements to maximize performance and RL robustness:
+*   **[`docs/selfplay_improvements.md`](docs/selfplay_improvements.md):** Our active, living design document for post-porting performance and algorithmic optimizations.
+
+---
+
 ## 📖 Key Documentation
 
 *   **[`docs/porting_to_mlx/SUMMARY.md`](docs/porting_to_mlx/SUMMARY.md):** Deep technical write-up detailing the PyTorch to MLX translation, layout adaptations (NHWC), FFI batching optimizations, free-threaded nogil compatibility, and reinforcement learning convergence results. **(Read this first!)**
-*   **[`docs/porting_to_mlx/PORT_PLAN.md`](docs/porting_to_mlx/PORT_PLAN.md):** The living, 14-phase implementation plan, all fully checked off.
+*   **[`docs/porting_to_mlx/PORT_PLAN.md`](docs/porting_to_mlx/PORT_PLAN.md):** The 14-phase implementation plan for the core MLX port, all fully checked off.
 *   **[`docs/system_overview.md`](docs/system_overview.md):** Rationale and orientation document analyzing the design philosophy of the AutoGo system.
 
 ---
