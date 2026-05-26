@@ -189,11 +189,17 @@ def main() -> None:
         value_losses.append(val_loss.item())
         accuracies.append(accuracy.item())
 
-        if step == 1 or step % 50 == 0:
+        if step == 1 or step % 50 == 0 or step == args.steps:
+            # Calculate rolling average over the last 50 steps to smooth out batch-level noise
+            window = min(50, step)
+            roll_loss = np.mean(losses[-window:])
+            roll_pol = np.mean(policy_losses[-window:])
+            roll_val = np.mean(value_losses[-window:])
+            roll_acc = np.mean(accuracies[-window:])
             print(
                 f"Step {step:03d}/{args.steps:03d} | "
-                f"Loss: {loss.item():.4f} (Pol: {pol_loss.item():.4f}, Val: {val_loss.item():.4f}) | "
-                f"Train Policy Acc: {accuracy.item():.2%} | "
+                f"Loss: {roll_loss:.4f} (Pol: {roll_pol:.4f}, Val: {roll_val:.4f}) | "
+                f"Train Policy Acc: {roll_acc:.2%} | "
                 f"lr: {optimizer.learning_rate.item():.6f}",
                 flush=True,
             )
