@@ -27,8 +27,9 @@ def compute_dense_loss(
     mcts_policy_BC: mx.array,
     winner_B: mx.array,
     is_teacher_B: mx.array,
+    score_target_B: mx.array | None = None,
 ) -> tuple[mx.array, mx.array, mx.array]:
-    """Dense-target policy CE + value BCE; returns ``(total, policy, value)``.
+    """Dense-target policy CE + value BCE + auxiliary score MSE; returns ``(total, policy, value)``.
 
     Args:
         model: ``SizeInvariantGoResNet`` (or any module with the same
@@ -44,12 +45,17 @@ def compute_dense_loss(
             numeric dtype; coerced to the value-logit dtype).
         is_teacher_B: ``(B,)`` 0/1 mask, 1 where the policy target was
             produced by an MCTS teacher (so worth supervising against).
+        score_target_B: ``(B,)`` self-perspective final score margin (float).
 
     The policy normalisation is ``(w * ce).sum() / max(w.sum(), 1)`` rather
     than ``ce.mean() * (w == 1)`` — this matches the upstream and stays
     finite even on all-zero ``is_teacher_B`` batches (value loss still flows).
     """
-    policy_BC, value_B = model(board_BHWC, mask_BHW)
+    if score_target_B is not None:
+        policy_BC, value_B, score_B = model(board_BHWC, mask_BHW, return_score=True)
+    else:
+        policy_BC, value_B = model(board_BHWC, mask_BHW)
+        score_B = None
 
     log_probs_BC = policy_BC - mx.logsumexp(policy_BC, axis=-1, keepdims=True)
     policy_ce_B = -(mcts_policy_BC * log_probs_BC).sum(axis=-1)
@@ -63,4 +69,16 @@ def compute_dense_loss(
         reduction="mean",
     )
 
-    return policy_loss + value_loss, policy_loss, value_loss
+    if score_B is not None and score_target_B is not None:
+        # Score regression loss: MSE between predicted score and final score target.
+        # We weight the score loss by 0.01 so it acts as a regularizer without dominating.
+        score_loss = nn.losses.mse_loss(
+            score_B,
+            score_target_B.astype(score_B.dtype),
+            reduction="mean",
+        )
+        total_loss = policy_loss + value_loss + 0.01 * score_loss
+    else:
+        total_loss = policy_loss + value_loss
+
+    return total_loss, policy_loss, value_loss

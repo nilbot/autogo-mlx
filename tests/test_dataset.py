@@ -151,3 +151,36 @@ def test_d4_apply_pass_invariant_and_orbit_size() -> None:
     # Applying every D4 element to a generic board yields 8 distinct boards.
     boards = {_d4_apply(board_HW, s).tobytes() for s in range(8)}
     assert len(boards) == 8
+
+
+def test_18_channel_dataset_and_score(tmp_path) -> None:
+    bs = 9
+    rng = np.random.default_rng(42)
+    # Write synthetic NPZ with custom scores
+    _write_synthetic_npz(tmp_path / "g_hist.npz", n=10, board_size=bs, rng=rng)
+    
+    # Save a file with a final_score key to test the explicit loader
+    data = dict(np.load(tmp_path / "g_hist.npz"))
+    data["final_score"] = np.array([12.5], dtype=np.float32)
+    np.savez_compressed(tmp_path / "g_hist.npz", **data)
+    
+    ds = GoDataset(tmp_path, board_size=bs, in_channels=18)
+    assert len(ds) == 10
+    
+    batch_size = 4
+    batches = list(ds.iter_batches(batch_size, augment=True))
+    assert len(batches) == 2
+    
+    batch = batches[0]
+    # Check shapes
+    assert batch["board_BHWC"].shape == (batch_size, bs, bs, 18)
+    assert batch["board_BHWC"].dtype == np.float32
+    assert batch["mask_BHW"].shape == (batch_size, bs, bs)
+    assert batch["final_score_B"].shape == (batch_size,)
+    assert batch["final_score_B"].dtype == np.float32
+    
+    # Ensure final score loader successfully retrieved the 12.5 margin
+    # (Since current_player BLACK gets margin=score, WHITE gets margin=-score)
+    scores = batch["final_score_B"]
+    assert np.all((scores == 12.5) | (scores == -12.5))
+

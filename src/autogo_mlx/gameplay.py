@@ -33,6 +33,7 @@ class GameRecord:
     num_moves: int = 0
     komi: float = GoBoard.KOMI
     termination: str = ""  # "double_pass", "max_moves", etc.
+    final_score: float = 0.0
 
 
 def play_game(
@@ -151,6 +152,7 @@ def play_game(
             num_moves=move_count,
             komi=komi,
             termination=termination,
+            final_score=float(score),
         )
 
     finally:
@@ -189,6 +191,7 @@ def save_game_data(record: GameRecord, filepath: str | Path) -> None:
         is_teacher=is_teacher,
         board_size=record.board_size,
         num_moves=n_moves,
+        final_score=np.array(record.final_score, dtype=np.float32),
     )
 
 
@@ -337,6 +340,7 @@ def play_vectorized_games(
                 records[idx].result = result
                 records[idx].num_moves = move_counts[idx]
                 records[idx].termination = termination
+                records[idx].final_score = float(score)
             else:
                 next_active.append(idx)
         active_indices = next_active

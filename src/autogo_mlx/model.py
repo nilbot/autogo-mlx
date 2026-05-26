@@ -197,6 +197,8 @@ class SizeInvariantGoResNet(nn.Module):
         self.pass_fc = nn.Linear(channels, 1)
         self.value_fc1 = nn.Linear(channels, value_hidden)
         self.value_fc2 = nn.Linear(value_hidden, 1)
+        self.score_fc1 = nn.Linear(channels, value_hidden)
+        self.score_fc2 = nn.Linear(value_hidden, 1)
 
         self._init_weights()
 
@@ -222,10 +224,12 @@ class SizeInvariantGoResNet(nn.Module):
         self.pass_fc.bias = mx.zeros(self.pass_fc.bias.shape)
         self.value_fc2.weight = mx.zeros(self.value_fc2.weight.shape)
         self.value_fc2.bias = mx.zeros(self.value_fc2.bias.shape)
+        self.score_fc2.weight = mx.zeros(self.score_fc2.weight.shape)
+        self.score_fc2.bias = mx.zeros(self.score_fc2.bias.shape)
 
     def __call__(
-        self, board_BHWC: mx.array, mask_BHW: mx.array | None = None
-    ) -> tuple[mx.array, mx.array]:
+        self, board_BHWC: mx.array, mask_BHW: mx.array | None = None, return_score: bool = False
+    ) -> tuple[mx.array, mx.array] | tuple[mx.array, mx.array, mx.array]:
         B, H, W, _ = board_BHWC.shape
         if mask_BHW is None:
             mask_BHW1 = mx.ones((B, H, W, 1), dtype=board_BHWC.dtype)
@@ -252,4 +256,10 @@ class SizeInvariantGoResNet(nn.Module):
 
         v = nn.relu(self.value_fc1(pooled_BC))
         value_B = self.value_fc2(v).squeeze(-1)
+
+        if return_score:
+            s = nn.relu(self.score_fc1(pooled_BC))
+            score_B = self.score_fc2(s).squeeze(-1)
+            return policy_BA, value_B, score_B
+
         return policy_BA, value_B

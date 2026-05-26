@@ -9,8 +9,9 @@ set -euo pipefail
 EXP_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORKSPACE_ROOT="$(cd "${EXP_DIR}/../.." && pwd)"
 
-START=${1:?Usage: run_iteration.sh <start_iter> <end_iter>}
-END=${2:?Usage: run_iteration.sh <start_iter> <end_iter>}
+START=${1:?Usage: run_iteration.sh <start_iter> <end_iter> [in_channels]}
+END=${2:?Usage: run_iteration.sh <start_iter> <end_iter> [in_channels]}
+IN_CHANNELS=${3:-3}
 
 mkdir -p "${EXP_DIR}/checkpoints"
 mkdir -p "${EXP_DIR}/logs"
@@ -70,6 +71,7 @@ for ITER in $(seq "$START" "$END"); do
             --batch-size 64 \
             --steps 300 \
             --seed 42 \
+            --in-channels "$IN_CHANNELS" \
             2>&1 | tee "${EXP_DIR}/logs/train_iter1.log"
         t1=$(date +%s)
         

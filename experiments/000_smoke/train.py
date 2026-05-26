@@ -65,23 +65,26 @@ def main() -> None:
         "--steps", type=int, default=300, help="Number of training steps"
     )
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument(
+        "--in-channels",
+        type=int,
+        default=3,
+        help="Number of input channels (3 for absolute, 8 for liberties, 18 for history)",
+    )
     args = parser.parse_args()
 
     mx.random.seed(args.seed)
     np.random.seed(args.seed)
 
     dataset_dir = Path(args.dataset_dir)
-    resume_path = Path(args.resume_from)
     save_path = Path(args.save_checkpoint)
     save_path.parent.mkdir(parents=True, exist_ok=True)
 
-    if not resume_path.exists():
-        print(f"ERROR: Resume checkpoint not found: {resume_path}", file=sys.stderr)
-        sys.exit(1)
-
     print(f"Loading dataset from {dataset_dir}...", flush=True)
     t0 = time.time()
-    dataset = GoDataset(dataset_dir, board_size=9, in_memory=True)
+    dataset = GoDataset(
+        dataset_dir, board_size=9, in_memory=True, in_channels=args.in_channels
+    )
     print(
         f"Loaded {len(dataset)} positions from dataset in {time.time() - t0:.1f}s",
         flush=True,
@@ -94,9 +97,23 @@ def main() -> None:
         )
         sys.exit(1)
 
-    # Initialize model and load weights
-    model = SizeInvariantGoResNet(channels=128, n_blocks=10, value_hidden=64)
-    model.load_weights(str(resume_path))
+    # Initialize model
+    model = SizeInvariantGoResNet(
+        channels=128, n_blocks=10, value_hidden=64, in_channels=args.in_channels
+    )
+
+    # Load weights if resume-from is provided (strict=False)
+    if args.resume_from:
+        resume_path = Path(args.resume_from)
+        if resume_path.exists():
+            print(f"Resuming weights from checkpoint: {resume_path} (strict=False)", flush=True)
+            model.load_weights(str(resume_path), strict=False)
+        else:
+            print(f"ERROR: Resume checkpoint specified but not found: {resume_path}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        print("No resume checkpoint specified. Training from scratch (random initialization)...", flush=True)
+
     model.train()
     mx.eval(model.parameters())
 
@@ -115,9 +132,10 @@ def main() -> None:
         mcts_policy: mx.array,
         winner: mx.array,
         is_teacher: mx.array,
+        final_score: mx.array | None = None,
     ) -> tuple[mx.array, tuple[mx.array, mx.array]]:
         loss, pol_loss, val_loss = compute_dense_loss(
-            model, board, mask, mcts_policy, winner, is_teacher
+            model, board, mask, mcts_policy, winner, is_teacher, score_target_B=final_score
         )
         return loss, (pol_loss, val_loss)
 
@@ -130,9 +148,10 @@ def main() -> None:
         mcts_policy: mx.array,
         winner: mx.array,
         is_teacher: mx.array,
-    ) -> tuple[mx.array, mx.array, mx.array, mx.array]:
+        final_score: mx.array | None = None,
+    ) -> tuple[mx.array, mx.array, mx.array, mx.array, mx.array]:
         (loss, (pol_loss, val_loss)), grads = loss_and_grad_fn(
-            model, board, mask, mcts_policy, winner, is_teacher
+            model, board, mask, mcts_policy, winner, is_teacher, final_score
         )
         optimizer.update(model, grads)
 
@@ -143,7 +162,14 @@ def main() -> None:
         correct = (pred_actions == target_actions).astype(mx.float32)
         accuracy = (correct * is_teacher).sum() / mx.maximum(is_teacher.sum(), 1.0)
 
-        return loss, pol_loss, val_loss, accuracy
+        # Calculate score MAE if score prediction head is active
+        if final_score is not None:
+            _, _, score_logits = model(board, mask, return_score=True)
+            score_mae = mx.mean(mx.abs(score_logits - final_score))
+        else:
+            score_mae = mx.array(0.0)
+
+        return loss, pol_loss, val_loss, accuracy, score_mae
 
     print(
         f"Starting training on {mx.default_device()} for {args.steps} steps...",
@@ -158,6 +184,7 @@ def main() -> None:
     policy_losses = []
     value_losses = []
     accuracies = []
+    score_maes = []
 
     for step in range(1, args.steps + 1):
         try:
@@ -175,19 +202,31 @@ def main() -> None:
         mcts_policy = mx.array(batch["mcts_policy_BA"])
         winner = mx.array(batch["winner_B"])
         is_teacher = mx.array(batch["is_teacher_B"])
+        final_score = (
+            mx.array(batch["final_score_B"]) if "final_score_B" in batch else None
+        )
 
         # Execute step
-        loss, pol_loss, val_loss, accuracy = train_step(
-            board, mask, mcts_policy, winner, is_teacher
+        loss, pol_loss, val_loss, accuracy, score_mae = train_step(
+            board, mask, mcts_policy, winner, is_teacher, final_score
         )
 
         # Force evaluation of the returned scalars and state updates
-        mx.eval(loss, pol_loss, val_loss, accuracy, model.parameters(), optimizer.state)
+        mx.eval(
+            loss,
+            pol_loss,
+            val_loss,
+            accuracy,
+            score_mae,
+            model.parameters(),
+            optimizer.state,
+        )
 
         losses.append(loss.item())
         policy_losses.append(pol_loss.item())
         value_losses.append(val_loss.item())
         accuracies.append(accuracy.item())
+        score_maes.append(score_mae.item())
 
         if step == 1 or step % 50 == 0 or step == args.steps:
             # Calculate rolling average over the last 50 steps to smooth out batch-level noise
@@ -196,10 +235,13 @@ def main() -> None:
             roll_pol = np.mean(policy_losses[-window:])
             roll_val = np.mean(value_losses[-window:])
             roll_acc = np.mean(accuracies[-window:])
+            roll_mae = np.mean(score_maes[-window:])
+
+            score_log = f", Score MAE: {roll_mae:.2f}" if args.in_channels == 18 else ""
             print(
                 f"Step {step:03d}/{args.steps:03d} | "
                 f"Loss: {roll_loss:.4f} (Pol: {roll_pol:.4f}, Val: {roll_val:.4f}) | "
-                f"Train Policy Acc: {roll_acc:.2%} | "
+                f"Train Policy Acc: {roll_acc:.2%}{score_log} | "
                 f"lr: {optimizer.learning_rate.item():.6f}",
                 flush=True,
             )
@@ -219,11 +261,14 @@ def main() -> None:
     avg_pol = np.mean(policy_losses[-50:])
     avg_val = np.mean(value_losses[-50:])
     avg_acc = np.mean(accuracies[-50:])
+    avg_mae = np.mean(score_maes[-50:])
     print("\nFinal average metrics over last 50 steps:", flush=True)
     print(
         f"  Loss: {avg_loss:.4f} (Pol: {avg_pol:.4f}, Val: {avg_val:.4f})", flush=True
     )
     print(f"  Policy Acc: {avg_acc:.2%}", flush=True)
+    if args.in_channels == 18:
+        print(f"  Score MAE: {avg_mae:.2f}", flush=True)
 
 
 if __name__ == "__main__":

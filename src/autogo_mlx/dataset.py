@@ -357,12 +357,34 @@ class GoDataset:
         winner = self._winner_for_position(data, local, current_player)
         is_teacher = bool(data["is_teacher"][local]) if "is_teacher" in data else False
 
+        # Get final score with graceful fallback
+        if "final_score" in data and data["final_score"].size > 0:
+            if data["final_score"].ndim == 0:
+                game_score = float(data["final_score"])
+            else:
+                if len(data["final_score"]) > local:
+                    game_score = float(data["final_score"][local])
+                else:
+                    game_score = float(data["final_score"][-1])
+        else:
+            winner_arr = data["winner"]
+            game_winner = int(winner_arr) if winner_arr.ndim == 0 else int(winner_arr[-1])
+            if game_winner == 0:
+                game_score = 0.0
+            elif game_winner == BLACK:
+                game_score = 5.0
+            else:
+                game_score = -5.0
+
+        margin = game_score if current_player == BLACK else -game_score
+
         sample: dict[str, Any] = {
             "board": board,
             "mask": mask,
             "winner": np.int8(winner),
             "is_teacher": is_teacher,
             "current_player": np.int8(current_player),
+            "final_score": np.float32(margin),
         }
 
         if self.in_channels == 8:
@@ -393,6 +415,49 @@ class GoDataset:
                     "lib_3": lib_3,
                     "lib_4": lib_4,
                     "ko": ko,
+                }
+            )
+
+        elif self.in_channels == 18:
+            opponent = WHITE if current_player == BLACK else BLACK
+            player_history = []
+            opponent_history = []
+            for i in range(8):
+                t_idx = local - i
+                if t_idx >= 0:
+                    h_board = data["boards"][t_idx]
+                    h_player = (h_board == current_player).astype(np.float32)
+                    h_opponent = (h_board == opponent).astype(np.float32)
+                else:
+                    h_player = np.zeros((h, w), dtype=np.float32)
+                    h_opponent = np.zeros((h, w), dtype=np.float32)
+
+                p_player = np.zeros((bs, bs), dtype=np.float32)
+                p_player[:h, :w] = h_player
+                p_opponent = np.zeros((bs, bs), dtype=np.float32)
+                p_opponent[:h, :w] = h_opponent
+
+                player_history.append(p_player)
+                opponent_history.append(p_opponent)
+
+            color_val = 1.0 if current_player == BLACK else 0.0
+            color_plane = np.full((bs, bs), color_val, dtype=np.float32)
+
+            if local > 0:
+                ko_raw = _compute_ko_point_numpy(
+                    raw, data["boards"][local - 1], data["moves"][local - 1]
+                )
+            else:
+                ko_raw = np.zeros(raw.shape, dtype=np.float32)
+            ko_plane = np.zeros((bs, bs), dtype=np.float32)
+            ko_plane[:h, :w] = ko_raw
+
+            sample.update(
+                {
+                    "player_history": np.stack(player_history, axis=-1),
+                    "opponent_history": np.stack(opponent_history, axis=-1),
+                    "color_plane": color_plane[..., None],
+                    "ko_plane": ko_plane[..., None],
                 }
             )
 
@@ -513,12 +578,19 @@ class GoDataset:
             else:
                 policies_BA = np.zeros((b, bs * bs + 1), dtype=np.float32)
 
+            final_scores_B = np.array([s["final_score"] for s in samples], dtype=np.float32)
+
             if self.in_channels == 8:
                 lib_1_BHW = np.stack([s["lib_1"] for s in samples])
                 lib_2_BHW = np.stack([s["lib_2"] for s in samples])
                 lib_3_BHW = np.stack([s["lib_3"] for s in samples])
                 lib_4_BHW = np.stack([s["lib_4"] for s in samples])
                 ko_BHW = np.stack([s["ko"] for s in samples])
+            elif self.in_channels == 18:
+                player_hist_B8HW = np.stack([s["player_history"] for s in samples]).transpose(0, 3, 1, 2)
+                opponent_hist_B8HW = np.stack([s["opponent_history"] for s in samples]).transpose(0, 3, 1, 2)
+                color_B1HW = np.stack([s["color_plane"] for s in samples]).transpose(0, 3, 1, 2)
+                ko_B1HW = np.stack([s["ko_plane"] for s in samples]).transpose(0, 3, 1, 2)
 
             sym = int(rng.integers(0, 8)) if augment else 0
             if sym:
@@ -531,18 +603,29 @@ class GoDataset:
                     lib_3_BHW = _d4_apply(lib_3_BHW, sym)
                     lib_4_BHW = _d4_apply(lib_4_BHW, sym)
                     ko_BHW = _d4_apply(ko_BHW, sym)
+                elif self.in_channels == 18:
+                    player_hist_B8HW = _d4_apply(player_hist_B8HW, sym)
+                    opponent_hist_B8HW = _d4_apply(opponent_hist_B8HW, sym)
+                    color_B1HW = _d4_apply(color_B1HW, sym)
+                    ko_B1HW = _d4_apply(ko_B1HW, sym)
 
             board_BHWC = np.zeros((b, bs, bs, self.in_channels), dtype=np.float32)
-            for i in range(b):
-                board_BHWC[i, ..., :3] = _one_hot_board(
-                    boards_BHW[i], int(current_B[i])
-                )
-                if self.in_channels == 8:
-                    board_BHWC[i, ..., 3] = lib_1_BHW[i]
-                    board_BHWC[i, ..., 4] = lib_2_BHW[i]
-                    board_BHWC[i, ..., 5] = lib_3_BHW[i]
-                    board_BHWC[i, ..., 6] = lib_4_BHW[i]
-                    board_BHWC[i, ..., 7] = ko_BHW[i]
+            if self.in_channels == 18:
+                board_BHWC[..., :8] = player_hist_B8HW.transpose(0, 2, 3, 1)
+                board_BHWC[..., 8:16] = opponent_hist_B8HW.transpose(0, 2, 3, 1)
+                board_BHWC[..., 16:17] = color_B1HW.transpose(0, 2, 3, 1)
+                board_BHWC[..., 17:18] = ko_B1HW.transpose(0, 2, 3, 1)
+            else:
+                for i in range(b):
+                    board_BHWC[i, ..., :3] = _one_hot_board(
+                        boards_BHW[i], int(current_B[i])
+                    )
+                    if self.in_channels == 8:
+                        board_BHWC[i, ..., 3] = lib_1_BHW[i]
+                        board_BHWC[i, ..., 4] = lib_2_BHW[i]
+                        board_BHWC[i, ..., 5] = lib_3_BHW[i]
+                        board_BHWC[i, ..., 6] = lib_4_BHW[i]
+                        board_BHWC[i, ..., 7] = ko_BHW[i]
             board_BHWC *= masks_BHW[..., None].astype(np.float32)
 
             yield {
@@ -551,6 +634,7 @@ class GoDataset:
                 "mcts_policy_BA": policies_BA,
                 "winner_B": winners_B,
                 "is_teacher_B": is_teacher_B,
+                "final_score_B": final_scores_B,
             }
 
     # ---- diagnostics ------------------------------------------------------

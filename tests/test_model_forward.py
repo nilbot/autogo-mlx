@@ -44,3 +44,26 @@ def test_forward_shapes_and_mask_propagation() -> None:
     assert abs(lse_full - lse_sub) > 0.1, (
         f"expected meaningful logsumexp gap, got full={lse_full:.4f} sub={lse_sub:.4f}"
     )
+
+
+def test_18_channel_forward_and_score_head() -> None:
+    # Verify model initializes and processes 18-channel inputs successfully
+    B, H, W, C = 2, 9, 9, 18
+    model = SizeInvariantGoResNet(channels=128, n_blocks=10, value_hidden=64, in_channels=C)
+    
+    board_BHWC = mx.random.normal(shape=(B, H, W, C))
+    mask_BHW = mx.ones((B, H, W))
+    
+    # 1. Standard forward pass: must return exactly 2 items
+    policy_BA, value_B = model(board_BHWC, mask_BHW)
+    mx.eval(policy_BA, value_B)
+    assert policy_BA.shape == (B, H * W + 1)
+    assert value_B.shape == (B,)
+    
+    # 2. Score forward pass: must return exactly 3 items
+    policy_BA2, value_B2, score_B = model(board_BHWC, mask_BHW, return_score=True)
+    mx.eval(policy_BA2, value_B2, score_B)
+    assert policy_BA2.shape == (B, H * W + 1)
+    assert value_B2.shape == (B,)
+    assert score_B.shape == (B,)
+

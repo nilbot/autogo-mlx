@@ -223,6 +223,30 @@ class BatchedMLXEvaluator:
                     boards_np[idx, ..., 5] = lib_3
                     boards_np[idx, ..., 6] = lib_4
                     boards_np[idx, ..., 7] = ko
+                elif self.in_channels == 18:
+                    one_hot = _one_hot_board(board, to_play)
+                    player_stones = one_hot[..., 1]
+                    opponent_stones = one_hot[..., 2]
+
+                    # Channels 0-7: current player stones (approximation)
+                    for i in range(8):
+                        boards_np[idx, ..., i] = player_stones
+
+                    # Channels 8-15: opponent stones (approximation)
+                    for i in range(8):
+                        boards_np[idx, ..., 8 + i] = opponent_stones
+
+                    # Channel 16: color to play (BLACK=1)
+                    color_val = 1.0 if to_play == 1 else 0.0
+                    boards_np[idx, ..., 16] = color_val
+
+                    # Channel 17: Ko indicator plane
+                    ko_plane = np.zeros((self.board_size, self.board_size), dtype=np.float32)
+                    ko_pt = board.ko_point()
+                    if ko_pt is not None:
+                        r_ko, c_ko = ko_pt // self.board_size, ko_pt % self.board_size
+                        ko_plane[r_ko, c_ko] = 1.0
+                    boards_np[idx, ..., 17] = ko_plane
                 else:
                     boards_np[idx] = _one_hot_board(board, to_play)
                 idx += 1

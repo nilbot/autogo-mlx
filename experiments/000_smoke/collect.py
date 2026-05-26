@@ -154,6 +154,11 @@ def main() -> None:
 
     t0 = time.time()
 
+    # Dynamically detect channel shape of model checkpoint
+    weights = mx.load(str(checkpoint_path))
+    in_channels = weights["input_conv.weight"].shape[3]
+    print(f"--> Detected model channel shape: {in_channels}", flush=True)
+
     # 2. Instantiate the shared BatchedMLXEvaluator
     # We use a batch size of 64 or 128 to match concurrency, and short timeout
     evaluator = BatchedMLXEvaluator(
@@ -161,6 +166,7 @@ def main() -> None:
         board_size=args.board_size,
         batch_size=64,
         timeout_ms=1.0,
+        in_channels=in_channels,
     )
 
     # 3. Play vectorized games synchronously in batches on the main thread
