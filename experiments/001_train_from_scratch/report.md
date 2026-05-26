@@ -6,7 +6,7 @@ This report summarizes the reinforcement learning progress of training `SizeInva
 
 - **Overall Status**: 🟢 Completed
 - **Estimated Remaining Time**: 0m (Finished)
-- **Total Elapsed Execution Time**: 17.03 hours (active)
+- **Total Elapsed Execution Time**: 24.22 hours (active)
 
 ## Stage-by-Stage Progress Table
 
@@ -28,9 +28,17 @@ This report summarizes the reinforcement learning progress of training `SizeInva
 | Iter 6 Training | 🟢 **Completed** | `██████████` 100% | Step 2000/2000 | 440.4s | Loss=3.2221, Acc=45.19% |
 | Iter 6 Self-Play | 🟢 **Completed** | `██████████` 100% | 1000/1000 games | 7188.8s |  |
 | Iter 7 Training | 🟢 **Completed** | `██████████` 100% | Step 2000/2000 | 447.0s | Loss=2.9730, Acc=53.44% |
-| Iter 7 Self-Play | 🟢 **Completed** | `██████████` 100% | 1000/1000 games | 7288.6s |  |
-| Iter 8 Training | 🟢 **Completed** | `██████████` 100% | Step 2000/2000 | 448.6s | Loss=2.6223, Acc=62.20% |
-| Final Evaluation | 🟢 **Completed** | `██████████` 100% | 100 wins / 0 losses | — | Win Rate=100.0% |
+| Iter 7 Self-Play | 🟢 **Completed** | `██████████` 100% | 1000/1000 games | 6506.1s |  |
+| Iter 8 Training | 🟢 **Completed** | `██████████` 100% | Step 2000/2000 | 429.6s | Loss=2.1387, Acc=61.31% |
+| Iter 8 Self-Play | 🟢 **Completed** | `██████████` 100% | 1000/1000 games | 6234.5s |  |
+| Iter 9 Training | 🟢 **Completed** | `██████████` 100% | Step 2000/2000 | 433.8s | Loss=1.7282, Acc=74.17% |
+| Iter 9 Self-Play | 🟢 **Completed** | `██████████` 100% | 1000/1000 games | 6116.3s |  |
+| Iter 10 Training | 🟢 **Completed** | `██████████` 100% | Step 2000/2000 | 433.8s | Loss=1.4622, Acc=80.84% |
+| Iter 10 Self-Play | 🟢 **Completed** | `██████████` 100% | 1000/1000 games | 6132.7s |  |
+| Iter 11 Training | 🟢 **Completed** | `██████████` 100% | Step 2000/2000 | 432.8s | Loss=1.2052, Acc=85.91% |
+| Iter 11 Self-Play | 🟢 **Completed** | `██████████` 100% | 1000/1000 games | 6463.7s |  |
+| Iter 12 Training | 🟢 **Completed** | `██████████` 100% | Step 2000/2000 | 445.5s | Loss=1.0861, Acc=88.33% |
+| Final Evaluation | 🟢 **Completed** | `██████████` 100% | 99 wins / 1 losses | — | Win Rate=99.0% |
 
 ## Summary & Key Metrics
 
@@ -38,11 +46,11 @@ This report summarizes the reinforcement learning progress of training `SizeInva
 
 The multi-iteration reinforcement learning training run has completed successfully!
 
-- **Final Evaluation Model**: `iter8.safetensors`
+- **Final Evaluation Model**: `iter12.safetensors`
 - **Evaluation Opponent**: `RandomAgent`
 - **Balanced Match Details**: 100 games (50 Black, 50 White), search noise disabled.
-- **Match Score**: Model **100** wins, RandomAgent **0** wins.
-- **Final Evaluation Win Rate**: **100.0%** (Target: $\ge 80\%$)
+- **Match Score**: Model **99** wins, RandomAgent **1** wins.
+- **Final Evaluation Win Rate**: **99.0%** (Target: $\ge 80\%$)
 - **Outcome Status**: **SUCCESS**
 
 ### Training Convergence Details
@@ -55,4 +63,8 @@ The multi-iteration reinforcement learning training run has completed successful
 - **Iteration 5**: Policy Accuracy = 34.50%, Loss = 3.4203
 - **Iteration 6**: Policy Accuracy = 45.19%, Loss = 3.2221
 - **Iteration 7**: Policy Accuracy = 53.44%, Loss = 2.9730
-- **Iteration 8**: Policy Accuracy = 62.20%, Loss = 2.6223
+- **Iteration 8**: Policy Accuracy = 61.31%, Loss = 2.1387
+- **Iteration 9**: Policy Accuracy = 74.17%, Loss = 1.7282
+- **Iteration 10**: Policy Accuracy = 80.84%, Loss = 1.4622
+- **Iteration 11**: Policy Accuracy = 85.91%, Loss = 1.2052
+- **Iteration 12**: Policy Accuracy = 88.33%, Loss = 1.0861
