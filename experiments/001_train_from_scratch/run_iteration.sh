@@ -12,6 +12,11 @@ START=${1:?Usage: run_iteration.sh <start_iter> <end_iter> [in_channels]}
 END=${2:?Usage: run_iteration.sh <start_iter> <end_iter> [in_channels]}
 IN_CHANNELS=${3:-8}
 
+# Configurable parameters for Attempt 8 scaling
+NUM_GAMES=${NUM_GAMES:-10000}
+N_SIMULATIONS=${N_SIMULATIONS:-128}
+TRAIN_STEPS=${TRAIN_STEPS:-2000}
+
 mkdir -p "${EXP_DIR}/checkpoints"
 mkdir -p "${EXP_DIR}/logs"
 
@@ -28,8 +33,9 @@ if [ "$START" -eq 0 ] && [ ! -f "${EXP_DIR}/checkpoints/iter0.safetensors" ]; th
     echo "Bootstrapping Iteration 0: Random Self-play Collection"
     echo "=========================================================="
     t0=$(date +%s)
+    BOOTSTRAP_GAMES=$(( NUM_GAMES < 1000 ? NUM_GAMES : 1000 ))
     uv run python "${EXP_DIR}/pre_collect_random.py" \
-        --num-games 1000 \
+        --num-games "$BOOTSTRAP_GAMES" \
         --num-workers 8 \
         --seed 42 \
         2>&1 | tee "${EXP_DIR}/logs/bootstrap_collect.log"
@@ -46,7 +52,7 @@ if [ "$START" -eq 0 ] && [ ! -f "${EXP_DIR}/checkpoints/iter0.safetensors" ]; th
         --dataset-dir "${EXP_DIR}/random-it0" \
         --resume-from "" \
         --save-checkpoint "${EXP_DIR}/checkpoints/iter0.safetensors" \
-        --steps 2000 \
+        --steps "$TRAIN_STEPS" \
         --lr 1e-3 \
         --batch-size 64 \
         --seed 42 \
@@ -62,7 +68,7 @@ if [ "$START" -eq 0 ] && [ ! -f "${EXP_DIR}/checkpoints/iter0.safetensors" ]; th
         --checkpoint "${EXP_DIR}/checkpoints/iter0.safetensors" \
         --selfplay-dir "${EXP_DIR}/random-it0" \
         --in-channels "$IN_CHANNELS" \
-        --iteration 0
+        --iteration 0 || [ "$NUM_GAMES" -lt 10 ]
     echo ""
 fi
 
@@ -104,17 +110,27 @@ for ITER in $(seq "$START" "$END"); do
     CKPT="${EXP_DIR}/checkpoints/iter${ITER}.safetensors"
     DATA_DIR="${EXP_DIR}/selfplay/iter${ITER}"
     
-    echo "--> Collection: playing 1000 games with progressive MCTS simulations and opponent pooling..."
+    # Enable Phase 2 opponent pooling conditional
+    OPPONENT_POOL_FLAGS=""
+    if [ "$ITER" -ge 11 ]; then
+        echo "--> Phase 2: Opponent pooling enabled (using checkpoints pool directory)."
+        OPPONENT_POOL_FLAGS="--opponent-pool-dir ${EXP_DIR}/checkpoints"
+    else
+        echo "--> Phase 1: Pure self-play."
+    fi
+
+    echo "--> Collection: playing ${NUM_GAMES} games with progressive MCTS simulations..."
     t0=$(date +%s)
     uv run python "${EXP_DIR}/collect.py" \
         --checkpoint "$CKPT" \
-        --num-games 1000 \
-        --n-simulations 64 \
+        --num-games "${NUM_GAMES}" \
+        --n-simulations "${N_SIMULATIONS}" \
         --save-dir "$DATA_DIR" \
         --num-workers 8 \
         --seed $((42 + ITER * 100)) \
         --in-channels "$IN_CHANNELS" \
         --progressive-sims \
+        ${OPPONENT_POOL_FLAGS} \
         2>&1 | tee "${EXP_DIR}/logs/collect_iter${ITER}.log"
     t1=$(date +%s)
     echo "--> Game collection took $((t1 - t0)) seconds."
@@ -125,13 +141,13 @@ for ITER in $(seq "$START" "$END"); do
     NEXT=$((ITER + 1))
     NEXT_CKPT="${EXP_DIR}/checkpoints/iter${NEXT}.safetensors"
     
-    echo "--> Training: optimizing checkpoint iter${NEXT} for 2000 steps..."
+    echo "--> Training: optimizing checkpoint iter${NEXT} for ${TRAIN_STEPS} steps..."
     t0=$(date +%s)
     uv run python "${EXP_DIR}/train.py" \
         --dataset-dir "$DATA_DIR" \
         --resume-from "$CKPT" \
         --save-checkpoint "$NEXT_CKPT" \
-        --steps 2000 \
+        --steps "$TRAIN_STEPS" \
         --lr 1e-3 \
         --batch-size 64 \
         --seed $((42 + ITER * 200)) \
@@ -147,7 +163,7 @@ for ITER in $(seq "$START" "$END"); do
         --checkpoint "$NEXT_CKPT" \
         --selfplay-dir "$DATA_DIR" \
         --in-channels "$IN_CHANNELS" \
-        --iteration "$NEXT"
+        --iteration "$NEXT" || [ "$NUM_GAMES" -lt 10 ]
     echo ""
 done
 
@@ -166,11 +182,13 @@ echo "=========================================================="
 echo "Final Evaluation: Model ${FINAL_CKPT} vs ${OPPONENT_NAME}"
 echo "=========================================================="
 t0=$(date +%s)
+# Use 10 games for evaluation if NUM_GAMES is small (e.g. in dry-run)
+EVAL_GAMES=$(( NUM_GAMES < 100 ? 10 : 100 ))
 uv run python "${EXP_DIR}/evaluate.py" \
     --checkpoint "$FINAL_CKPT" \
     ${OPPONENT_FLAGS} \
-    --num-games 100 \
-    --n-simulations 64 \
+    --num-games "$EVAL_GAMES" \
+    --n-simulations "${N_SIMULATIONS}" \
     --num-workers 8 \
     --seed 1000 \
     --in-channels "$IN_CHANNELS" \

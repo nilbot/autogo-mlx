@@ -110,10 +110,10 @@ def main() -> None:
             iteration = int(match.group(1))
             if iteration < 4:
                 args.n_simulations = 16
-            elif iteration < 8:
+            elif iteration < 5:
                 args.n_simulations = 32
             else:
-                args.n_simulations = 64
+                args.n_simulations = 128
             print(f"--> Progressive sims enabled. Iteration {iteration} -> {args.n_simulations} simulations.", flush=True)
         else:
             print("--> Progressive sims enabled, but could not parse iteration index from checkpoint filename.", flush=True)
