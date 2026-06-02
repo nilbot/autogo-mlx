@@ -27,13 +27,12 @@ To transition from a proof-of-concept run to a high-strength Go agent, we must i
 * **Recommendation**: Flat **64 simulations** for early iterations (0–4), scaling to **128 or 256 simulations** for mature iterations (5+).
 * **Rationale**: Higher simulation budgets reduce the policy noise and allow MCTS to output extremely high-quality target distributions. Because our C++ native evaluator is highly optimized, the time-per-step penalty is minimal.
 
-### Strategy C: Activating League Play / Opponent Pool
+### Strategy C: Two-Phase Opponent Pooling
 * **Current**: Model only plays against its current version (pure self-play).
-* **Recommendation**: Enable the historical opponent pool flag in `collect.py`:
-  ```bash
-  --opponent-pool-dir experiments/001_train_from_scratch/checkpoints
-  ```
-* **Rationale**: Under pure self-play, models can develop localized tactical blindspots (rock-paper-scissors dynamics) or suffer from catastrophic forgetting. Forcing 20% of self-play games to match the active model against randomly selected historical iterations (e.g., `iter4`, `iter8`) forces robust, generalized play.
+* **Recommendation**: Implement a two-phase self-play schedule:
+  * **Phase 1 (Iterations 0-10)**: Omit opponent pooling. Run pure self-play to establish a clean, high-quality positional evaluation baseline (policy accuracy target > 75%) without diluting the training signal.
+  * **Phase 2 (Iterations 10+)**: Enable the opponent pool by adding the `--opponent-pool-dir` flag in `collect.py` targeting `experiments/001_train_from_scratch/checkpoints`.
+* **Rationale**: Early-stage opponent pooling dilutes the learning gradient with noisy moves from extremely weak versions (e.g., `iter0`). Activating it in later iterations regularizes the value head and prevents strategy cycling (rock-paper-scissors dynamics) without introducing early-stage noise.
 
 ### Strategy D: Tuning the Legal Pass Threshold
 * **Current**: PASS restricted below move 60.
@@ -50,11 +49,13 @@ When launching a new Attempt 8 training run, execute the following commands:
 rm -rf experiments/001_train_from_scratch/selfplay/*
 rm -rf experiments/001_train_from_scratch/checkpoints/*
 
-# 2. Modify the orchestrator (run_iteration.sh) to include the opponent pool:
-# In the collect.py invocation, add:
-#   --opponent-pool-dir "${EXP_DIR}/checkpoints"
+# 2. Phase 1 (Iterations 0 to 10):
+# Run pure self-play to build a strong baseline without opponent pooling:
+./experiments/001_train_from_scratch/run_iteration.sh 0 10 8
 
-# 3. Kick off the run
-# Usage: ./run_iteration.sh <start_iter> <end_iter> <in_channels>
-./experiments/001_train_from_scratch/run_iteration.sh 0 20 8
+# 3. Phase 2 (Iterations 11 to 20):
+# Modify the orchestrator (run_iteration.sh) to add:
+#   --opponent-pool-dir "${EXP_DIR}/checkpoints"
+# Then continue the run:
+./experiments/001_train_from_scratch/run_iteration.sh 11 20 8
 ```

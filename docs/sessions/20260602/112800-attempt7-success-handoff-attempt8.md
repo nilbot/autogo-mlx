@@ -31,7 +31,9 @@ The next phase of the project is focused on scaling up the training loop to prod
 
 ### 2. Generalization & Opponent Pooling
 * **Submodule & Main Repo Synchronization**: All changes are committed and clean.
-* **League Play Activation**: Run self-play data collection with the `--opponent-pool-dir` flag pointing to `checkpoints/` to force the agent to play 20% of its matches against historical models, preventing localized policy exploitation.
+* **Two-Phase Opponent Pooling**: 
+  * **Phase 1 (Iterations 0-10)**: Run pure self-play without opponent pooling to build a stable positional evaluation baseline (policy accuracy target > 75%) without gradient dilution.
+  * **Phase 2 (Iterations 11-20)**: Enable `--opponent-pool-dir` pointing to `checkpoints/` to force the agent to play 20% of its self-play games against randomly selected historical versions, preventing policy cycling and localized blindspots.
 
 ---
 
@@ -44,7 +46,8 @@ The next phase of the project is focused on scaling up the training loop to prod
 
 ## 🎯 Task Tracker for Attempt 8
 * `[ ]` Configure orchestrator parameters to support 10,000 games and 128 simulations in `run_iteration.sh`.
+* `[ ]` Clean checkpoints and self-play data directories.
+* `[ ]` **Phase 1 (Iterations 0-10)**: Execute pure self-play retraining run.
 * `[ ]` Enable the `--opponent-pool-dir` flag in `collect.py`.
-* `[ ]` Clean checkpoints and self-play data.
-* `[ ]` Execute Attempt 8 retraining loop.
-* `[ ]` Run evaluation match against `iter0` baseline.
+* `[ ]` **Phase 2 (Iterations 11-20)**: Execute opponent pooling retraining run.
+* `[ ]` Run final evaluation match of `iter20` against `iter0` baseline.
