@@ -1,0 +1,15 @@
+Starting random-vs-random self-play collection -> /Users/nilbot/playground/autogo-mlx/experiments/001_train_from_scratch/random-it0
+Config: num-games=1000, workers=8, seed=42
+[0001] Game 001 finished: winner=2 (moves=186, result=W+81.5)
+[0100] Game 099 finished: winner=2 (moves=97, result=W+6.5)
+[0200] Game 200 finished: winner=2 (moves=172, result=W+36.5)
+[0300] Game 297 finished: winner=1 (moves=107, result=B+18.5)
+[0400] Game 400 finished: winner=1 (moves=125, result=B+21.5)
+[0500] Game 499 finished: winner=2 (moves=114, result=W+0.5)
+[0600] Game 599 finished: winner=1 (moves=104, result=B+5.5)
+[0700] Game 700 finished: winner=2 (moves=74, result=W+17.5)
+[0800] Game 797 finished: winner=2 (moves=111, result=W+10.5)
+[0900] Game 898 finished: winner=2 (moves=141, result=W+14.5)
+[1000] Game 998 finished: winner=1 (moves=133, result=B+35.5)
+
+Collection completed in 8.3 seconds (0.008s/game average).

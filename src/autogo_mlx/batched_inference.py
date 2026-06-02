@@ -33,6 +33,7 @@ class BatchInferenceRequest:
     to_plays: list[int]
     legal_actions_list: list[list[int]]
     result_future: Future[list[tuple[dict[int, float], float]]]
+    history_boards_list: list[list[np.ndarray] | None] | None = None
 
 
 class BatchedMLXEvaluator:
@@ -84,6 +85,7 @@ class BatchedMLXEvaluator:
         board_HW: np.ndarray,
         to_play: int,
         legal_actions: Iterable[int],
+        history_boards: list[np.ndarray] | None = None,
     ) -> tuple[dict[int, float], float]:
         """Submit a board for evaluation. Blocks until the result is ready.
 
@@ -91,22 +93,25 @@ class BatchedMLXEvaluator:
             board_HW: ``(board_size, board_size)`` absolute board.
             to_play: ``1`` (BLACK) or ``2`` (WHITE), the player to move.
             legal_actions: Flat indices of the currently legal moves.
+            history_boards: Optional list of past board states (T-1, T-2, ..., T-7)
+                to construct exact 18-channel deep history planes.
 
         Returns:
             ``(policy, value)`` where ``policy`` maps legal actions to probs
             and ``value`` is the win probability in ``[0, 1]``.
         """
-        results = self.evaluate_batch([(board_HW, to_play, list(legal_actions))])
+        results = self.evaluate_batch([(board_HW, to_play, list(legal_actions), history_boards)])
         return results[0]
 
     def evaluate_batch(
         self,
-        states: list[tuple[np.ndarray, int, list[int]]],
+        states: list[tuple[np.ndarray, int, list[int]]] | list[tuple[np.ndarray, int, list[int], list[np.ndarray] | None]],
     ) -> list[tuple[dict[int, float], float]]:
         """Submit multiple boards for evaluation. Blocks until the results are ready.
 
         Args:
-            states: A list of tuples ``(board_HW, to_play, legal_actions)``.
+            states: A list of tuples ``(board_HW, to_play, legal_actions)`` or
+                ``(board_HW, to_play, legal_actions, history_boards)``.
 
         Returns:
             A list of ``(policy, value)`` tuples corresponding to the input states.
@@ -117,8 +122,15 @@ class BatchedMLXEvaluator:
         boards_HW = []
         to_plays = []
         legal_actions_list = []
+        history_boards_list = []
 
-        for board_HW, to_play, legal_actions in states:
+        for item in states:
+            if len(item) == 4:
+                board_HW, to_play, legal_actions, history_boards = item
+            else:
+                board_HW, to_play, legal_actions = item
+                history_boards = None
+
             board_HW = np.asarray(board_HW)
             if board_HW.shape != (self.board_size, self.board_size):
                 raise ValueError(
@@ -134,12 +146,14 @@ class BatchedMLXEvaluator:
             boards_HW.append(board_HW)
             to_plays.append(to_play)
             legal_actions_list.append(legal)
+            history_boards_list.append(history_boards)
 
         future: Future[list[tuple[dict[int, float], float]]] = Future()
         request = BatchInferenceRequest(
             boards_HW=boards_HW,
             to_plays=to_plays,
             legal_actions_list=legal_actions_list,
+            history_boards_list=history_boards_list,
             result_future=future,
         )
         self.request_queue.put(request)
@@ -209,8 +223,9 @@ class BatchedMLXEvaluator:
 
         idx = 0
         for r in batch_requests:
-            for board, to_play, legal in zip(
-                r.boards_HW, r.to_plays, r.legal_actions_list
+            hist_list = r.history_boards_list if r.history_boards_list is not None else [None] * len(r.boards_HW)
+            for board, to_play, legal, history_boards in zip(
+                r.boards_HW, r.to_plays, r.legal_actions_list, hist_list
             ):
                 if self.in_channels == 8:
                     lib_1, lib_2, lib_3, lib_4 = _compute_liberties_numpy(board)
@@ -228,13 +243,28 @@ class BatchedMLXEvaluator:
                     player_stones = one_hot[..., 1]
                     opponent_stones = one_hot[..., 2]
 
-                    # Channels 0-7: current player stones (approximation)
-                    for i in range(8):
-                        boards_np[idx, ..., i] = player_stones
+                    player_history = [player_stones]
+                    opponent_history = [opponent_stones]
+                    opponent = 3 - to_play
 
-                    # Channels 8-15: opponent stones (approximation)
+                    for i in range(7):
+                        if history_boards is not None and i < len(history_boards) and history_boards[i] is not None:
+                            h_board = history_boards[i]
+                            h_player = (h_board == to_play).astype(np.float32)
+                            h_opponent = (h_board == opponent).astype(np.float32)
+                        else:
+                            h_player = np.zeros((self.board_size, self.board_size), dtype=np.float32)
+                            h_opponent = np.zeros((self.board_size, self.board_size), dtype=np.float32)
+                        player_history.append(h_player)
+                        opponent_history.append(h_opponent)
+
+                    # Channels 0-7: player history
                     for i in range(8):
-                        boards_np[idx, ..., 8 + i] = opponent_stones
+                        boards_np[idx, ..., i] = player_history[i]
+
+                    # Channels 8-15: opponent history
+                    for i in range(8):
+                        boards_np[idx, ..., 8 + i] = opponent_history[i]
 
                     # Channel 16: color to play (BLACK=1)
                     color_val = 1.0 if to_play == 1 else 0.0

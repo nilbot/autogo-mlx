@@ -1,0 +1,25 @@
+Starting self-play collection using /Users/nilbot/.gemini/antigravity/worktrees/mugo/port-autogo-mlx-alphago/experiments/001_train_from_scratch/checkpoints/iter3.safetensors
+Config: num-games=1000, simulations=64, workers=8
+[0001] Game 0006 finished: winner=2 (moves=14, result=W+7.5)
+[0050] Game 0048 finished: winner=1 (moves=118, result=B+8.5)
+[0100] Game 0096 finished: winner=2 (moves=160, result=W+78.5)
+[0150] Game 0151 finished: winner=2 (moves=80, result=W+3.5)
+[0200] Game 0200 finished: winner=1 (moves=117, result=B+10.5)
+[0250] Game 0251 finished: winner=2 (moves=90, result=W+19.5)
+[0300] Game 0301 finished: winner=1 (moves=105, result=B+7.5)
+[0350] Game 0350 finished: winner=2 (moves=110, result=W+20.5)
+[0400] Game 0397 finished: winner=2 (moves=129, result=W+20.5)
+[0450] Game 0450 finished: winner=2 (moves=106, result=W+9.5)
+[0500] Game 0500 finished: winner=1 (moves=106, result=B+5.5)
+[0550] Game 0547 finished: winner=2 (moves=144, result=W+19.5)
+[0600] Game 0601 finished: winner=2 (moves=95, result=W+12.5)
+[0650] Game 0650 finished: winner=2 (moves=108, result=W+8.5)
+[0700] Game 0698 finished: winner=1 (moves=137, result=B+61.5)
+[0750] Game 0748 finished: winner=1 (moves=149, result=B+34.5)
+[0800] Game 0798 finished: winner=1 (moves=130, result=B+40.5)
+[0850] Game 0850 finished: winner=2 (moves=100, result=W+8.5)
+[0900] Game 0900 finished: winner=1 (moves=85, result=B+8.5)
+[0950] Game 0950 finished: winner=2 (moves=102, result=W+20.5)
+[1000] Game 0999 finished: winner=1 (moves=193, result=B+30.5)
+
+Collection completed in 7189.0 seconds (7.189s/game average).

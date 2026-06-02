@@ -169,53 +169,42 @@ def main() -> None:
         in_channels=args.in_channels,
     )
 
-    # 3. Play vectorized games synchronously in batches on the main thread
     try:
-        batch_size = 64
-        while games_completed < args.num_games:
-            current_batch_size = min(batch_size, args.num_games - games_completed)
+        # 3. Play vectorized games using pool-swapping MCTS
+        black_evals = []
+        white_evals = []
+        for game_idx in range(args.num_games):
+            b_eval = evaluator
+            w_eval = evaluator
+            if historical_evaluator is not None:
+                rng = np.random.default_rng(args.seed + game_idx)
+                if rng.random() < 0.20:
+                    if rng.random() < 0.5:
+                        b_eval = historical_evaluator
+                    else:
+                        w_eval = historical_evaluator
+            black_evals.append(b_eval)
+            white_evals.append(w_eval)
 
-            black_evals = []
-            white_evals = []
-            for i in range(current_batch_size):
-                game_idx = games_completed + i
-                b_eval = evaluator
-                w_eval = evaluator
-                if historical_evaluator is not None:
-                    rng = np.random.default_rng(args.seed + game_idx)
-                    if rng.random() < 0.20:
-                        if rng.random() < 0.5:
-                            b_eval = historical_evaluator
-                        else:
-                            w_eval = historical_evaluator
-                black_evals.append(b_eval)
-                white_evals.append(w_eval)
+        print(
+            f"--> Starting pool-swapping selfplay for all {args.num_games} games with max_active_games=64...",
+            flush=True,
+        )
+        records = play_vectorized_games(
+            black_evaluators=black_evals,
+            white_evaluators=white_evals,
+            board_size=args.board_size,
+            max_moves=250,
+            seed=args.seed,
+            n_simulations=args.n_simulations,
+            c_puct=1.5,
+            dirichlet_alpha=0.3,
+            max_active_games=64,
+        )
 
-            print(
-                f"--> Starting batch of {current_batch_size} vectorized games (games {games_completed} to {games_completed + current_batch_size - 1})...",
-                flush=True,
-            )
-            records = play_vectorized_games(
-                black_evaluators=black_evals,
-                white_evaluators=white_evals,
-                board_size=args.board_size,
-                max_moves=250,
-                seed=args.seed + games_completed,
-                n_simulations=args.n_simulations,
-                c_puct=1.5,
-                dirichlet_alpha=0.3,
-            )
-
-            for i, record in enumerate(records):
-                game_idx = games_completed + i
-                filepath = save_dir / f"game_{game_idx:04d}.npz"
-                save_game_data(record, filepath)
-
-            games_completed += current_batch_size
-            print(
-                f"[{games_completed:04d}/{args.num_games:04d}] Vectorized selfplay games completed.",
-                flush=True,
-            )
+        for game_idx, record in enumerate(records):
+            filepath = save_dir / f"game_{game_idx:04d}.npz"
+            save_game_data(record, filepath)
 
     except KeyboardInterrupt:
         print("\nAborted by user.", flush=True)

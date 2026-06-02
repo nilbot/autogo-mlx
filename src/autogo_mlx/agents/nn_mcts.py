@@ -17,6 +17,7 @@ from autogo_mlx.cpp_bridge import (
     MCTSConfig,
     MCTSTree,
 )
+# find_history_with_cache import removed since history is natively tracked in C++
 
 if TYPE_CHECKING:
     from autogo_mlx.batched_inference import BatchedMLXEvaluator
@@ -107,6 +108,16 @@ class MLXNNMCTSAgent:
         if seed is not None:
             np.random.seed(seed)
 
+        # 0. Setup and synchronize history tracking
+        if not hasattr(self, "history_boards"):
+            self.history_boards = []
+
+        if board.move_count() == 0 or board.move_count() < len(self.history_boards):
+            self.history_boards = []
+
+        if len(self.history_boards) > board.move_count():
+            self.history_boards = self.history_boards[:board.move_count()]
+
         # 1. Setup MCTS Search Config
         config = MCTSConfig()
         config.c_puct = self.c_puct
@@ -123,10 +134,16 @@ class MLXNNMCTSAgent:
             board_HW = state.to_numpy()
             to_play = state.to_play()
             legal_flat = state.get_legal_moves_flat()
-            legal_actions_nn = legal_flat + [self.pass_index]
+            # Restrict early PASS under move 60 to prevent the PASS attractor
+            if state.move_count() >= 60:
+                legal_actions_nn = legal_flat + [self.pass_index]
+            else:
+                legal_actions_nn = legal_flat
+
+            history_inputs_dynamic = state.get_history_numpy()
 
             policy_nn, value_nn = self.evaluator.evaluate(
-                board_HW, to_play, legal_actions_nn
+                board_HW, to_play, legal_actions_nn, history_inputs_dynamic
             )
 
             # Map NN's pass index back to C++ PASS_ACTION (-1)
@@ -145,8 +162,15 @@ class MLXNNMCTSAgent:
                 board_HW = state.to_numpy()
                 to_play = state.to_play()
                 legal_flat = state.get_legal_moves_flat()
-                legal_actions_nn = legal_flat + [self.pass_index]
-                eval_inputs.append((board_HW, to_play, legal_actions_nn))
+                # Restrict early PASS under move 60 to prevent the PASS attractor
+                if state.move_count() >= 60:
+                    legal_actions_nn = legal_flat + [self.pass_index]
+                else:
+                    legal_actions_nn = legal_flat
+
+                history_inputs_dynamic = state.get_history_numpy()
+
+                eval_inputs.append((board_HW, to_play, legal_actions_nn, history_inputs_dynamic))
 
             results_nn = self.evaluator.evaluate_batch(eval_inputs)
 
@@ -187,6 +211,9 @@ class MLXNNMCTSAgent:
 
         # Choose the final action index
         action_idx = tree.select_action(self.temperature)
+
+        # Append current board before move to history
+        self.history_boards.append(board.to_numpy().copy())
 
         # 5. Return coordinate or flat representation
         if as_flat or legal_actions is not None:

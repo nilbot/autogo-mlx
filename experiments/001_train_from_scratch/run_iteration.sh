@@ -16,7 +16,7 @@ mkdir -p "${EXP_DIR}/checkpoints"
 mkdir -p "${EXP_DIR}/logs"
 
 print_vram() {
-    uv run python -c "import mlx.core as mx; print(f'Peak GPU Memory: {mx.metal.get_peak_memory() / (1024**2):.1f} MB')"
+    uv run python -c "import mlx.core as mx; print(f'Peak GPU Memory: {mx.get_peak_memory() / (1024**2):.1f} MB')"
 }
 
 START_TIME=$(date +%s)
@@ -55,6 +55,14 @@ if [ "$START" -eq 0 ] && [ ! -f "${EXP_DIR}/checkpoints/iter0.safetensors" ]; th
     t1=$(date +%s)
     echo "--> Bootstrap training took $((t1 - t0)) seconds."
     print_vram
+    
+    # Telemetry Sanity Check on Bootstrap Iteration 0
+    echo "--> Running Telemetry Health Check on bootstrap iter0..."
+    uv run python "${WORKSPACE_ROOT}/scripts/telemetry_alert.py" \
+        --checkpoint "${EXP_DIR}/checkpoints/iter0.safetensors" \
+        --selfplay-dir "${EXP_DIR}/random-it0" \
+        --in-channels "$IN_CHANNELS" \
+        --iteration 0
     echo ""
 fi
 
@@ -107,7 +115,6 @@ for ITER in $(seq "$START" "$END"); do
         --seed $((42 + ITER * 100)) \
         --in-channels "$IN_CHANNELS" \
         --progressive-sims \
-        --opponent-pool-dir "${EXP_DIR}/checkpoints" \
         2>&1 | tee "${EXP_DIR}/logs/collect_iter${ITER}.log"
     t1=$(date +%s)
     echo "--> Game collection took $((t1 - t0)) seconds."
@@ -133,6 +140,14 @@ for ITER in $(seq "$START" "$END"); do
     t1=$(date +%s)
     echo "--> Training took $((t1 - t0)) seconds."
     print_vram
+    
+    # 3. Telemetry Sanity Check (Fail-Fast)
+    echo "--> Running Telemetry Health Check on iter${NEXT}..."
+    uv run python "${WORKSPACE_ROOT}/scripts/telemetry_alert.py" \
+        --checkpoint "$NEXT_CKPT" \
+        --selfplay-dir "$DATA_DIR" \
+        --in-channels "$IN_CHANNELS" \
+        --iteration "$NEXT"
     echo ""
 done
 

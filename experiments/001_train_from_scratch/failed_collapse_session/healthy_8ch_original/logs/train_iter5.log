@@ -1,0 +1,19 @@
+Loading dataset from /Users/nilbot/.gemini/antigravity/worktrees/mugo/port-autogo-mlx-alphago/experiments/001_train_from_scratch/selfplay/iter4...
+Loaded 117263 positions from dataset in 0.5s
+Resuming weights from checkpoint: /Users/nilbot/.gemini/antigravity/worktrees/mugo/port-autogo-mlx-alphago/experiments/001_train_from_scratch/checkpoints/iter4.safetensors
+Starting training on Device(gpu, 0) for 2000 steps...
+Step 0001/2000 | Loss: 3.3200 (Pol: 2.7597, Val: 0.5603) | Train Policy Acc: 32.81%
+Step 0250/2000 | Loss: 3.4362 (Pol: 2.9023, Val: 0.5339) | Train Policy Acc: 33.58%
+Step 0500/2000 | Loss: 3.4238 (Pol: 2.8913, Val: 0.5326) | Train Policy Acc: 34.92%
+Step 0750/2000 | Loss: 3.4354 (Pol: 2.8923, Val: 0.5432) | Train Policy Acc: 34.78%
+Step 1000/2000 | Loss: 3.4286 (Pol: 2.8994, Val: 0.5292) | Train Policy Acc: 34.39%
+Step 1250/2000 | Loss: 3.4302 (Pol: 2.8955, Val: 0.5348) | Train Policy Acc: 34.02%
+Step 1500/2000 | Loss: 3.4459 (Pol: 2.9233, Val: 0.5226) | Train Policy Acc: 34.05%
+Step 1750/2000 | Loss: 3.4272 (Pol: 2.9048, Val: 0.5224) | Train Policy Acc: 34.38%
+Step 2000/2000 | Loss: 3.4203 (Pol: 2.9000, Val: 0.5203) | Train Policy Acc: 34.50%
+Training finished in 409.2s (0.205s/step).
+Saved checkpoint to /Users/nilbot/.gemini/antigravity/worktrees/mugo/port-autogo-mlx-alphago/experiments/001_train_from_scratch/checkpoints/iter5.safetensors
+
+Final average metrics over last 100 steps:
+  Loss: 3.4203 (Pol: 2.9000, Val: 0.5203)
+  Policy Acc: 34.50%

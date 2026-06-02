@@ -1,0 +1,45 @@
+Starting self-play collection using /Users/nilbot/playground/autogo-mlx/experiments/001_train_from_scratch/checkpoints/iter15.safetensors
+--> Progressive sims enabled. Iteration 15 -> 64 simulations.
+--> League play enabled: Selected historical opponent iter14.safetensors (18-channel model)
+Config: num-games=1000, simulations=64, workers=8
+--> Starting pool-swapping selfplay for all 1000 games with max_active_games=64...
+   [Vectorized MCTS] Step 001: 64 games active. Completed: 0/1000. Step time: 4321.6ms.
+   [Vectorized MCTS] Step 005: 64 games active. Completed: 128/1000. Step time: 4315.0ms.
+   [Vectorized MCTS] Step 010: 64 games active. Completed: 314/1000. Step time: 4486.8ms.
+   [Vectorized MCTS] Step 015: 64 games active. Completed: 433/1000. Step time: 4310.7ms.
+   [Vectorized MCTS] Step 020: 64 games active. Completed: 604/1000. Step time: 4542.1ms.
+   [Vectorized MCTS] Step 025: 64 games active. Completed: 718/1000. Step time: 4325.0ms.
+   [Vectorized MCTS] Step 030: 64 games active. Completed: 885/1000. Step time: 4615.9ms.
+   [Vectorized MCTS] Step 035: 09 games active. Completed: 991/1000. Step time: 1404.8ms.
+   [Vectorized MCTS] Step 040: 09 games active. Completed: 991/1000. Step time: 890.4ms.
+   [Vectorized MCTS] Step 045: 09 games active. Completed: 991/1000. Step time: 1382.1ms.
+   [Vectorized MCTS] Step 050: 09 games active. Completed: 991/1000. Step time: 884.5ms.
+   [Vectorized MCTS] Step 055: 09 games active. Completed: 991/1000. Step time: 1404.8ms.
+   [Vectorized MCTS] Step 060: 08 games active. Completed: 992/1000. Step time: 850.5ms.
+   [Vectorized MCTS] Step 065: 08 games active. Completed: 992/1000. Step time: 1279.8ms.
+   [Vectorized MCTS] Step 070: 08 games active. Completed: 992/1000. Step time: 869.0ms.
+   [Vectorized MCTS] Step 075: 07 games active. Completed: 993/1000. Step time: 1337.3ms.
+   [Vectorized MCTS] Step 080: 07 games active. Completed: 993/1000. Step time: 840.3ms.
+   [Vectorized MCTS] Step 085: 07 games active. Completed: 993/1000. Step time: 1352.3ms.
+   [Vectorized MCTS] Step 090: 07 games active. Completed: 993/1000. Step time: 836.9ms.
+   [Vectorized MCTS] Step 095: 07 games active. Completed: 993/1000. Step time: 1321.3ms.
+   [Vectorized MCTS] Step 100: 06 games active. Completed: 994/1000. Step time: 792.6ms.
+   [Vectorized MCTS] Step 105: 06 games active. Completed: 994/1000. Step time: 803.8ms.
+   [Vectorized MCTS] Step 110: 06 games active. Completed: 994/1000. Step time: 797.0ms.
+   [Vectorized MCTS] Step 115: 06 games active. Completed: 994/1000. Step time: 802.4ms.
+   [Vectorized MCTS] Step 120: 06 games active. Completed: 994/1000. Step time: 815.4ms.
+   [Vectorized MCTS] Step 125: 06 games active. Completed: 994/1000. Step time: 792.6ms.
+   [Vectorized MCTS] Step 130: 06 games active. Completed: 994/1000. Step time: 796.4ms.
+   [Vectorized MCTS] Step 135: 06 games active. Completed: 994/1000. Step time: 798.9ms.
+   [Vectorized MCTS] Step 140: 06 games active. Completed: 994/1000. Step time: 807.5ms.
+   [Vectorized MCTS] Step 145: 06 games active. Completed: 994/1000. Step time: 812.1ms.
+   [Vectorized MCTS] Step 150: 06 games active. Completed: 994/1000. Step time: 800.5ms.
+   [Vectorized MCTS] Step 155: 05 games active. Completed: 995/1000. Step time: 748.2ms.
+   [Vectorized MCTS] Step 160: 05 games active. Completed: 995/1000. Step time: 734.9ms.
+   [Vectorized MCTS] Step 165: 04 games active. Completed: 996/1000. Step time: 684.3ms.
+   [Vectorized MCTS] Step 170: 03 games active. Completed: 997/1000. Step time: 621.4ms.
+   [Vectorized MCTS] Step 175: 01 games active. Completed: 999/1000. Step time: 584.6ms.
+   [Vectorized MCTS] Step 180: 01 games active. Completed: 999/1000. Step time: 529.2ms.
+   [Vectorized MCTS] Step 184: 00 games active. Completed: 1000/1000. Step time: 525.0ms.
+
+Collection completed in 283.6 seconds (0.284s/game average).

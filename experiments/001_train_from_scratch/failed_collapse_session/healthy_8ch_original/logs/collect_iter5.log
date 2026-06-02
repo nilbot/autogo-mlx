@@ -1,0 +1,25 @@
+Starting self-play collection using /Users/nilbot/playground/autogo-mlx/experiments/001_train_from_scratch/checkpoints/iter5.safetensors
+Config: num-games=1000, simulations=64, workers=8
+[0001] Game 0000 finished: winner=2 (moves=10, result=W+7.5)
+[0050] Game 0046 finished: winner=2 (moves=160, result=W+45.5)
+[0100] Game 0099 finished: winner=2 (moves=101, result=W+14.5)
+[0150] Game 0149 finished: winner=2 (moves=100, result=W+19.5)
+[0200] Game 0200 finished: winner=2 (moves=142, result=W+64.5)
+[0250] Game 0246 finished: winner=1 (moves=133, result=B+36.5)
+[0300] Game 0299 finished: winner=2 (moves=104, result=W+27.5)
+[0350] Game 0349 finished: winner=1 (moves=125, result=B+24.5)
+[0400] Game 0399 finished: winner=1 (moves=111, result=B+3.5)
+[0450] Game 0452 finished: winner=2 (moves=97, result=W+2.5)
+[0500] Game 0499 finished: winner=2 (moves=108, result=W+0.5)
+[0550] Game 0550 finished: winner=1 (moves=107, result=B+19.5)
+[0600] Game 0598 finished: winner=1 (moves=115, result=B+2.5)
+[0650] Game 0649 finished: winner=1 (moves=124, result=B+0.5)
+[0700] Game 0701 finished: winner=2 (moves=98, result=W+26.5)
+[0750] Game 0747 finished: winner=1 (moves=123, result=B+7.5)
+[0800] Game 0798 finished: winner=2 (moves=134, result=W+22.5)
+[0850] Game 0847 finished: winner=2 (moves=113, result=W+26.5)
+[0900] Game 0899 finished: winner=2 (moves=110, result=W+18.5)
+[0950] Game 0953 finished: winner=2 (moves=66, result=W+4.5)
+[1000] Game 0999 finished: winner=2 (moves=104, result=W+12.5)
+
+Collection completed in 7103.4 seconds (7.103s/game average).

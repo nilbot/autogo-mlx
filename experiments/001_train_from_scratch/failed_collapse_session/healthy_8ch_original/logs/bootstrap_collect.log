@@ -1,0 +1,15 @@
+Starting random-vs-random self-play collection -> /Users/nilbot/.gemini/antigravity/worktrees/mugo/port-autogo-mlx-alphago/experiments/001_train_from_scratch/random-it0
+Config: num-games=1000, workers=8, seed=42
+[0001] Game 001 finished: winner=2 (moves=174, result=W+78.5)
+[0100] Game 099 finished: winner=2 (moves=97, result=W+6.5)
+[0200] Game 199 finished: winner=1 (moves=161, result=B+34.5)
+[0300] Game 298 finished: winner=2 (moves=70, result=W+7.5)
+[0400] Game 400 finished: winner=1 (moves=125, result=B+21.5)
+[0500] Game 501 finished: winner=1 (moves=115, result=B+24.5)
+[0600] Game 600 finished: winner=1 (moves=122, result=B+25.5)
+[0700] Game 702 finished: winner=1 (moves=101, result=B+30.5)
+[0800] Game 799 finished: winner=2 (moves=130, result=W+52.5)
+[0900] Game 900 finished: winner=1 (moves=156, result=B+33.5)
+[1000] Game 999 finished: winner=2 (moves=26, result=W+6.5)
+
+Collection completed in 14.1 seconds (0.014s/game average).

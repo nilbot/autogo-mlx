@@ -1,14 +1,38 @@
 # Phase 10: Multi-Iteration Reinforcement Learning Loops Report
 
-This report summarizes the reinforcement learning progress of training `SizeInvariantGoResNet` from scratch on Apple Silicon using MLX. It is automatically updated by the background monitor cron task.
+This report summarizes the reinforcement learning progress of training `SizeInvariantGoResNet` from scratch on Apple Silicon using MLX.
 
-## Training Status Overview
+## 🔄 Retraining Session Status (Fixed 18-Channel & Pool Swapping)
 
-- **Overall Status**: 🟢 Completed
-- **Estimated Remaining Time**: 0m (Finished)
-- **Total Elapsed Execution Time**: 24.22 hours (active)
+- **Overall Status**: ⏳ Scheduled (Awaiting Launch)
+- **Current Active Stage**: None
+- **Start Iteration**: 12 (healthy baseline)
+- **Target Iteration**: 17
+- **Monitoring Policy**: Unattended manual polling (No active background cron jobs)
 
-## Stage-by-Stage Progress Table
+---
+
+## 🔄 Retraining Session Progress Table
+
+| Stage | Status | Progress | Progress Detail | Duration | Metrics / Details |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| Iter 12 Self-Play (Retrain) | 🟢 **Completed** | `██████████` 100% | 1000/1000 games | 3598.8s | Dynamic Pool Swapping (No Sloped Drop) |
+| Iter 13 Training (Retrain) | 🟢 **Completed** | `██████████` 100% | Step 2000/2000 | 540.7s | Loss=4.2353, Acc=66.48%, Val Loss=0.1331 |
+| Iter 13 Self-Play (Retrain) | 🟡 **In Progress** | `▏░░░░░░░░░` 2% | 18/1000 games | — | Saturated active pool |
+| Iter 14 Training (Retrain) | ⏳ **Scheduled** | `░░░░░░░░░░` 0% | Step 0/2000 | — | — |
+| Iter 14 Self-Play (Retrain) | ⏳ **Scheduled** | `░░░░░░░░░░` 0% | 0/1000 games | — | — |
+| Iter 15 Training (Retrain) | ⏳ **Scheduled** | `░░░░░░░░░░` 0% | Step 0/2000 | — | — |
+| Iter 15 Self-Play (Retrain) | ⏳ **Scheduled** | `░░░░░░░░░░` 0% | 0/1000 games | — | — |
+| Iter 16 Training (Retrain) | ⏳ **Scheduled** | `░░░░░░░░░░` 0% | Step 0/2000 | — | — |
+| Iter 16 Self-Play (Retrain) | ⏳ **Scheduled** | `░░░░░░░░░░` 0% | 0/1000 games | — | — |
+| Iter 17 Training (Retrain) | ⏳ **Scheduled** | `░░░░░░░░░░` 0% | Step 0/2000 | — | — |
+| Final Evaluation (Retrain) | ⏳ **Scheduled** | `░░░░░░░░░░` 0% | 0/100 games | — | Target: >= 80% Win Rate |
+
+---
+
+## 📜 Historical Progress & Collapse Diagnosis (Preserved)
+
+The initial continued training session ran into a performance collapse starting in iteration 13 due to a deep-history representation mismatch (distribution shift between training history planes and MCTS evaluators). The collapsed statistics are preserved below for audit and analysis:
 
 | Stage | Status | Progress | Progress Detail | Duration | Metrics / Details |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -38,33 +62,14 @@ This report summarizes the reinforcement learning progress of training `SizeInva
 | Iter 11 Training | 🟢 **Completed** | `██████████` 100% | Step 2000/2000 | 432.8s | Loss=1.2052, Acc=85.91% |
 | Iter 11 Self-Play | 🟢 **Completed** | `██████████` 100% | 1000/1000 games | 6463.7s |  |
 | Iter 12 Training | 🟢 **Completed** | `██████████` 100% | Step 2000/2000 | 445.5s | Loss=1.0861, Acc=88.33% |
-| Final Evaluation | 🟢 **Completed** | `██████████` 100% | 99 wins / 1 losses | — | Win Rate=99.0% |
-
-## Summary & Key Metrics
-
-### 🎉 Execution Completed!
-
-The multi-iteration reinforcement learning training run has completed successfully!
-
-- **Final Evaluation Model**: `iter12.safetensors`
-- **Evaluation Opponent**: `RandomAgent`
-- **Balanced Match Details**: 100 games (50 Black, 50 White), search noise disabled.
-- **Match Score**: Model **99** wins, RandomAgent **1** wins.
-- **Final Evaluation Win Rate**: **99.0%** (Target: $\ge 80\%$)
-- **Outcome Status**: **SUCCESS**
-
-### Training Convergence Details
-
-- **Bootstrap Iter 0**: Policy Accuracy = 7.11%, Loss = 3.7759
-- **Iteration 1**: Policy Accuracy = 9.48%, Loss = 3.7575
-- **Iteration 2**: Policy Accuracy = 11.09%, Loss = 3.7476
-- **Iteration 3**: Policy Accuracy = 15.77%, Loss = 3.6607
-- **Iteration 4**: Policy Accuracy = 24.81%, Loss = 3.5509
-- **Iteration 5**: Policy Accuracy = 34.50%, Loss = 3.4203
-- **Iteration 6**: Policy Accuracy = 45.19%, Loss = 3.2221
-- **Iteration 7**: Policy Accuracy = 53.44%, Loss = 2.9730
-- **Iteration 8**: Policy Accuracy = 61.31%, Loss = 2.1387
-- **Iteration 9**: Policy Accuracy = 74.17%, Loss = 1.7282
-- **Iteration 10**: Policy Accuracy = 80.84%, Loss = 1.4622
-- **Iteration 11**: Policy Accuracy = 85.91%, Loss = 1.2052
-- **Iteration 12**: Policy Accuracy = 88.33%, Loss = 1.0861
+| Iter 12 Self-Play (Collapsed) | 🟢 **Completed** | `██████████` 100% | 1000/1000 games | 5120.9s |  |
+| Iter 13 Training (Collapsed) | 🟢 **Completed** | `██████████` 100% | Step 2000/2000 | 536.1s | Loss=4.2332, Acc=66.95% |
+| Iter 13 Self-Play (Collapsed) | 🟢 **Completed** | `██████████` 100% | 1000/1000 games | 5518.1s |  |
+| Iter 14 Training (Collapsed) | 🟢 **Completed** | `██████████` 100% | Step 2000/2000 | 541.5s | Loss=5.6017, Acc=69.48% |
+| Iter 14 Self-Play (Collapsed) | 🟢 **Completed** | `██████████` 100% | 1000/1000 games | 5150.1s |  |
+| Iter 15 Training (Collapsed) | 🟢 **Completed** | `██████████` 100% | Step 2000/2000 | 541.0s | Loss=3.8008, Acc=76.36% |
+| Iter 15 Self-Play (Collapsed) | 🟢 **Completed** | `██████████` 100% | 1000/1000 games | 7569.5s |  |
+| Iter 16 Training (Collapsed) | 🟢 **Completed** | `██████████` 100% | Step 2000/2000 | 538.2s | Loss=1.9270, Acc=80.30% |
+| Iter 16 Self-Play (Collapsed) | 🟢 **Completed** | `██████████` 100% | 1000/1000 games | 10582.1s |  |
+| Iter 17 Training (Collapsed) | 🟢 **Completed** | `██████████` 100% | Step 2000/2000 | 542.9s | Loss=0.9720, Acc=78.98% |
+| Final Evaluation (Collapsed) | 🟢 **Completed** | `██████████` 100% | 1 wins / 99 losses | — | Win Rate=1.0% (Failed) |

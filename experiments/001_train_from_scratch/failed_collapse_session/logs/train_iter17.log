@@ -1,0 +1,20 @@
+Loading dataset from /Users/nilbot/playground/autogo-mlx/experiments/001_train_from_scratch/selfplay/iter16...
+Loaded 156472 positions from dataset in 0.5s
+Resuming weights from checkpoint: /Users/nilbot/playground/autogo-mlx/experiments/001_train_from_scratch/checkpoints/iter16.safetensors (strict=False)
+Starting training on Device(gpu, 0) for 2000 steps...
+Step 0001/2000 | Loss: 1.1098 (Pol: 0.8482, Val: 0.0008) | Train Policy Acc: 78.12%, Score MAE: 1.57 | lr: 0.000000
+Step 0250/2000 | Loss: 1.2050 (Pol: 0.9504, Val: 0.0062) | Train Policy Acc: 74.89%, Score MAE: 1.33 | lr: 0.000998
+Step 0500/2000 | Loss: 1.3838 (Pol: 0.9187, Val: 0.0067) | Train Policy Acc: 76.73%, Score MAE: 1.53 | lr: 0.000933
+Step 0750/2000 | Loss: 1.4089 (Pol: 0.8861, Val: 0.0076) | Train Policy Acc: 77.33%, Score MAE: 1.44 | lr: 0.000788
+Step 1000/2000 | Loss: 1.3105 (Pol: 0.9006, Val: 0.0056) | Train Policy Acc: 77.14%, Score MAE: 1.19 | lr: 0.000588
+Step 1250/2000 | Loss: 1.1120 (Pol: 0.9005, Val: 0.0028) | Train Policy Acc: 77.38%, Score MAE: 0.92 | lr: 0.000371
+Step 1500/2000 | Loss: 1.1227 (Pol: 0.8744, Val: 0.0033) | Train Policy Acc: 78.45%, Score MAE: 0.77 | lr: 0.000179
+Step 1750/2000 | Loss: 1.1936 (Pol: 0.8863, Val: 0.0048) | Train Policy Acc: 77.95%, Score MAE: 0.70 | lr: 0.000047
+Step 2000/2000 | Loss: 0.9720 (Pol: 0.8529, Val: 0.0016) | Train Policy Acc: 78.98%, Score MAE: 0.56 | lr: 0.000000
+Training finished in 542.9s (0.271s/step).
+Saved checkpoint to /Users/nilbot/playground/autogo-mlx/experiments/001_train_from_scratch/checkpoints/iter17.safetensors
+
+Final average metrics over last 100 steps:
+  Loss: 0.9720 (Pol: 0.8529, Val: 0.0016)
+  Policy Acc: 78.98%
+  Score MAE: 0.56

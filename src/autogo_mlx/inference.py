@@ -100,6 +100,7 @@ class MLXEvaluator:
         board_HW: np.ndarray,
         to_play: int,
         legal_actions: Iterable[int],
+        history_boards: list[np.ndarray] | None = None,
     ) -> tuple[dict[int, float], float]:
         """Evaluate one position.
 
@@ -112,6 +113,8 @@ class MLXEvaluator:
             legal_actions: Flat indices of the currently legal moves — board
                 cell ``r * board_size + c``, or ``board_size ** 2`` for pass.
                 Typically sourced from the C++ ``GoBoard``.
+            history_boards: Optional list of past board states (T-1, T-2, ..., T-7)
+                to construct exact 18-channel deep history planes.
 
         Returns:
             ``(policy, value)``. ``policy`` maps each legal action index to a
@@ -146,6 +149,40 @@ class MLXEvaluator:
             board_8ch[..., 7] = ko
 
             board_BHWC = mx.array(board_8ch[None])
+        elif self.in_channels == 18:
+            one_hot = _one_hot_board(board_HW, to_play)
+            player_stones = one_hot[..., 1]
+            opponent_stones = one_hot[..., 2]
+
+            player_history = [player_stones]
+            opponent_history = [opponent_stones]
+            opponent = 3 - to_play
+
+            for i in range(7):
+                if history_boards is not None and i < len(history_boards) and history_boards[i] is not None:
+                    h_board = history_boards[i]
+                    h_player = (h_board == to_play).astype(np.float32)
+                    h_opponent = (h_board == opponent).astype(np.float32)
+                else:
+                    h_player = np.zeros((self.board_size, self.board_size), dtype=np.float32)
+                    h_opponent = np.zeros((self.board_size, self.board_size), dtype=np.float32)
+                player_history.append(h_player)
+                opponent_history.append(h_opponent)
+
+            board_18ch = np.zeros(
+                (self.board_size, self.board_size, 18), dtype=np.float32
+            )
+            for i in range(8):
+                board_18ch[..., i] = player_history[i]
+                board_18ch[..., 8 + i] = opponent_history[i]
+
+            color_val = 1.0 if to_play == 1 else 0.0
+            board_18ch[..., 16] = color_val
+
+            ko_plane = _find_ko_point_evaluator(board_HW, to_play, set(legal))
+            board_18ch[..., 17] = ko_plane
+
+            board_BHWC = mx.array(board_18ch[None])
         else:
             board_BHWC = mx.array(_one_hot_board(board_HW, to_play)[None])
 

@@ -1,0 +1,110 @@
+Starting evaluation match: Model /Users/nilbot/playground/autogo-mlx/experiments/001_train_from_scratch/checkpoints/iter17.safetensors vs Opponent (iter11.safetensors)
+Config: games=100, simulations=64, workers=8, seed=1000
+[001/100] Game 006 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[002/100] Game 000 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[003/100] Game 003 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[004/100] Game 007 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[005/100] Game 005 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[006/100] Game 001 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[007/100] Game 002 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[008/100] Game 004 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[009/100] Game 009 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[010/100] Game 010 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[011/100] Game 008 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[012/100] Game 011 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[013/100] Game 015 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[014/100] Game 013 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[015/100] Game 014 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[016/100] Game 012 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[017/100] Game 016 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[018/100] Game 017 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[019/100] Game 018 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[020/100] Game 019 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[021/100] Game 022 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[022/100] Game 020 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[023/100] Game 021 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[024/100] Game 023 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[025/100] Game 024 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[026/100] Game 025 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[027/100] Game 026 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[028/100] Game 029 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[029/100] Game 030 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[030/100] Game 028 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[031/100] Game 027 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[032/100] Game 031 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[033/100] Game 032 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[034/100] Game 033 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[035/100] Game 034 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[036/100] Game 037 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[037/100] Game 039 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[038/100] Game 035 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[039/100] Game 038 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[040/100] Game 036 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[041/100] Game 040 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[042/100] Game 041 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[043/100] Game 042 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[044/100] Game 045 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[045/100] Game 043 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[046/100] Game 044 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[047/100] Game 046 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[048/100] Game 047 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[049/100] Game 048 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[050/100] Game 049 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[051/100] Game 050 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[052/100] Game 051 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[053/100] Game 053 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[054/100] Game 052 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[055/100] Game 054 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[056/100] Game 055 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[057/100] Game 056 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[058/100] Game 058 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[059/100] Game 059 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[060/100] Game 057 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[061/100] Game 062 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[062/100] Game 060 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[063/100] Game 063 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[064/100] Game 061 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[065/100] Game 064 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[066/100] Game 065 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[067/100] Game 066 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[068/100] Game 067 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[069/100] Game 068 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[070/100] Game 069 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[071/100] Game 071 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[072/100] Game 070 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[073/100] Game 072 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[074/100] Game 073 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[075/100] Game 074 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[076/100] Game 075 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[077/100] Game 076 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[078/100] Game 077 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[079/100] Game 078 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[080/100] Game 079 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[081/100] Game 080 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[082/100] Game 081 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[083/100] Game 082 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[084/100] Game 083 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[085/100] Game 084 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[086/100] Game 085 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[087/100] Game 086 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[088/100] Game 087 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[089/100] Game 088 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[090/100] Game 089 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[091/100] Game 090 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[092/100] Game 091 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[093/100] Game 092 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[094/100] Game 093 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[095/100] Game 094 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[096/100] Game 095 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[097/100] Game 096 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[098/100] Game 097 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+[099/100] Game 098 finished: BLACK=Model (MCTS), WHITE=Opponent (iter11.safetensors) | winner=2 (moves=2, result=W+7.5) -> OPPONENT (ITER11.SAFETENSORS) won
+[100/100] Game 099 finished: BLACK=Opponent (iter11.safetensors), WHITE=Model (MCTS) | winner=2 (moves=2, result=W+7.5) -> MODEL won
+
+==========================================================
+Evaluation Complete!
+Total time elapsed: 0.9 seconds
+Model Wins: 50 / 100 (50.00%)
+Opponent (iter11.safetensors) Wins: 50 / 100 (50.00%)
+==========================================================
+WARNING: Model did not meet target win rate of >= 80% (achieved 50.00%)
