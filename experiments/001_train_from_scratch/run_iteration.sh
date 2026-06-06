@@ -16,6 +16,9 @@ IN_CHANNELS=${3:-8}
 NUM_GAMES=${NUM_GAMES:-10000}
 N_SIMULATIONS=${N_SIMULATIONS:-128}
 TRAIN_STEPS=${TRAIN_STEPS:-2000}
+NUM_HIGH_SIMS_GAMES=${NUM_HIGH_SIMS_GAMES:-}
+LOW_SIMULATIONS=${LOW_SIMULATIONS:-16}
+RESUME=${RESUME:-false}
 
 mkdir -p "${EXP_DIR}/checkpoints"
 mkdir -p "${EXP_DIR}/logs"
@@ -119,6 +122,19 @@ for ITER in $(seq "$START" "$END"); do
         echo "--> Phase 1: Pure self-play."
     fi
 
+    # Hybrid budget and resumption flags
+    HYBRID_FLAGS=""
+    if [ -n "${NUM_HIGH_SIMS_GAMES}" ]; then
+        echo "--> Hybrid simulation budget: ${NUM_HIGH_SIMS_GAMES} games @ high, remainder @ ${LOW_SIMULATIONS} sims"
+        HYBRID_FLAGS="--num-high-sims-games ${NUM_HIGH_SIMS_GAMES} --low-simulations ${LOW_SIMULATIONS}"
+    fi
+
+    COLLECT_RESUME_FLAG=""
+    if [ "${RESUME}" = "true" ] || [ "${RESUME}" = "1" ]; then
+        echo "--> Resumption enabled. collect.py will resume if valid game files exist."
+        COLLECT_RESUME_FLAG="--resume"
+    fi
+
     echo "--> Collection: playing ${NUM_GAMES} games with progressive MCTS simulations..."
     t0=$(date +%s)
     uv run python "${EXP_DIR}/collect.py" \
@@ -131,6 +147,8 @@ for ITER in $(seq "$START" "$END"); do
         --in-channels "$IN_CHANNELS" \
         --progressive-sims \
         ${OPPONENT_POOL_FLAGS} \
+        ${HYBRID_FLAGS} \
+        ${COLLECT_RESUME_FLAG} \
         2>&1 | tee "${EXP_DIR}/logs/collect_iter${ITER}.log"
     t1=$(date +%s)
     echo "--> Game collection took $((t1 - t0)) seconds."
