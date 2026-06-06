@@ -134,6 +134,35 @@ def main() -> None:
         action="store_true",
         help="Resume game collection from existing valid games in target directory",
     )
+    parser.add_argument(
+        "--pcr",
+        action="store_true",
+        help="Enable Playout Cap Randomization",
+    )
+    parser.add_argument(
+        "--pcr-low-sims",
+        type=int,
+        default=16,
+        help="Low simulation count for PCR",
+    )
+    parser.add_argument(
+        "--pcr-high-prob",
+        type=float,
+        default=0.15,
+        help="Probability of playing high simulation moves under PCR",
+    )
+    parser.add_argument(
+        "--no-resign-prob",
+        type=float,
+        default=0.10,
+        help="Probability of fully disabling resignation for a game",
+    )
+    parser.add_argument(
+        "--resign-threshold",
+        type=float,
+        default=0.0,
+        help="Win probability threshold below which a player resigns (0.0 to disable)",
+    )
     args = parser.parse_args()
 
     checkpoint_path = Path(args.checkpoint)
@@ -293,6 +322,11 @@ def main() -> None:
                 c_puct=1.5,
                 dirichlet_alpha=0.3,
                 max_active_games=64,
+                pcr_enabled=args.pcr,
+                pcr_low_sims=args.pcr_low_sims,
+                pcr_high_prob=args.pcr_high_prob,
+                no_resign_prob=args.no_resign_prob,
+                resign_threshold=args.resign_threshold,
             )
             for game_idx, record in zip(remaining_high_games, records_high):
                 filepath = save_dir / f"game_{game_idx:04d}.npz"
@@ -329,6 +363,9 @@ def main() -> None:
                 c_puct=1.5,
                 dirichlet_alpha=0.3,
                 max_active_games=64,
+                pcr_enabled=False,
+                no_resign_prob=args.no_resign_prob,
+                resign_threshold=args.resign_threshold,
             )
             for game_idx, record in zip(remaining_low_games, records_low):
                 filepath = save_dir / f"game_{game_idx:04d}.npz"

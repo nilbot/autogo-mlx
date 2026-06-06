@@ -135,6 +135,31 @@ for ITER in $(seq "$START" "$END"); do
         COLLECT_RESUME_FLAG="--resume"
     fi
 
+    # Configure Playout Cap Randomization (PCR) and Resignation
+    PCR_FLAGS=""
+    RESIGN_FLAGS=""
+    
+    if [ "$ITER" -lt 5 ]; then
+        echo "--> Warm-up phase (Iter < 5): Resignation and PCR disabled."
+    else
+        CFG_FILE="${EXP_DIR}/resignation_config.json"
+        CURRENT_RESIGN_THRESHOLD="0.02"
+        CURRENT_PCR_ENABLED="true"
+        
+        if [ -f "$CFG_FILE" ]; then
+            CURRENT_RESIGN_THRESHOLD=$(uv run python -c "import json; print(json.load(open('${CFG_FILE}'))['resign_threshold'])" 2>/dev/null || echo "0.02")
+            CURRENT_PCR_ENABLED=$(uv run python -c "import json; print(str(json.load(open('${CFG_FILE}'))['pcr_enabled']).lower())" 2>/dev/null || echo "true")
+        fi
+        
+        echo "--> Resignation Threshold: ${CURRENT_RESIGN_THRESHOLD}"
+        echo "--> PCR Enabled: ${CURRENT_PCR_ENABLED}"
+        
+        RESIGN_FLAGS="--no-resign-prob 0.10 --resign-threshold ${CURRENT_RESIGN_THRESHOLD}"
+        if [ "$CURRENT_PCR_ENABLED" = "true" ]; then
+            PCR_FLAGS="--pcr --pcr-low-sims 16 --pcr-high-prob 0.15"
+        fi
+    fi
+
     echo "--> Collection: playing ${NUM_GAMES} games with progressive MCTS simulations..."
     t0=$(date +%s)
     uv run python "${EXP_DIR}/collect.py" \
@@ -149,10 +174,21 @@ for ITER in $(seq "$START" "$END"); do
         ${OPPONENT_POOL_FLAGS} \
         ${HYBRID_FLAGS} \
         ${COLLECT_RESUME_FLAG} \
+        ${PCR_FLAGS} \
+        ${RESIGN_FLAGS} \
         2>&1 | tee "${EXP_DIR}/logs/collect_iter${ITER}.log"
     t1=$(date +%s)
     echo "--> Game collection took $((t1 - t0)) seconds."
     print_vram
+    
+    # Run resignation calibration for next iteration if we are at or past iteration 5
+    if [ "$ITER" -ge 5 ]; then
+        echo "--> Calibrating resignation threshold for the next iteration..."
+        uv run python "${EXP_DIR}/calibrate_resignation.py" \
+            --save-dir "$DATA_DIR" \
+            --target-config "${EXP_DIR}/resignation_config.json" \
+            --target-fpr 0.01
+    fi
     echo ""
     
     # 2. Train iter{ITER+1} using iter{ITER} as starting weights

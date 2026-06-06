@@ -34,6 +34,10 @@ class GameRecord:
     komi: float = GoBoard.KOMI
     termination: str = ""  # "double_pass", "max_moves", etc.
     final_score: float = 0.0
+    is_teacher: List[bool] = field(default_factory=list)
+    no_resign: bool = False
+    resigned: bool = False
+    root_q_values: List[float] = field(default_factory=list)
 
 
 def play_game(
@@ -180,7 +184,16 @@ def save_game_data(record: GameRecord, filepath: str | Path) -> None:
     winner = np.full(n_moves, winner_val, dtype=np.int8)
 
     mcts_policy = np.array(record.mcts_policies, dtype=np.float32)
-    is_teacher = np.full(n_moves, True, dtype=bool)
+    
+    if len(record.is_teacher) == n_moves:
+        is_teacher = np.array(record.is_teacher, dtype=bool)
+    else:
+        is_teacher = np.full(n_moves, True, dtype=bool)
+
+    if len(record.root_q_values) == n_moves:
+        root_q_values = np.array(record.root_q_values, dtype=np.float32)
+    else:
+        root_q_values = np.zeros(n_moves, dtype=np.float32)
 
     np.savez_compressed(
         filepath,
@@ -192,6 +205,9 @@ def save_game_data(record: GameRecord, filepath: str | Path) -> None:
         board_size=record.board_size,
         num_moves=n_moves,
         final_score=np.array(record.final_score, dtype=np.float32),
+        no_resign=np.array(record.no_resign, dtype=bool),
+        resigned=np.array(record.resigned, dtype=bool),
+        root_q_values=root_q_values,
     )
 
 
@@ -209,6 +225,11 @@ def play_vectorized_games(
     c_puct: float = 1.5,
     dirichlet_alpha: float = 0.3,
     max_active_games: int = 64,
+    pcr_enabled: bool = False,
+    pcr_low_sims: int = 16,
+    pcr_high_prob: float = 0.15,
+    no_resign_prob: float = 0.10,
+    resign_threshold: float = 0.0,
 ) -> List[GameRecord]:
     """Play a batch of games simultaneously using VectorizedMCTS.
 
@@ -231,6 +252,11 @@ def play_vectorized_games(
         for _ in range(total_games)
     ]
 
+    # Initialize no_resign for all games
+    for game_idx in range(total_games):
+        rng_no_resign = np.random.default_rng(seed + game_idx)
+        records[game_idx].no_resign = (rng_no_resign.random() < no_resign_prob)
+
     # Active slots pool
     max_active = min(max_active_games, total_games)
     
@@ -239,6 +265,7 @@ def play_vectorized_games(
     boards = [GoBoard(board_size, 7.5 + (game_idx + 1) * 1e-6) for slot_idx, game_idx in enumerate(active_slots)]
     consec_passes = [0] * max_active
     move_counts = [0] * max_active
+    consec_low_win_rates = [0] * max_active
     
     next_game_idx = max_active
     completed_games = 0
@@ -255,7 +282,7 @@ def play_vectorized_games(
 
     while active_slots:
         step_start_time = time.perf_counter()
-        # 1. Group active slots by their current evaluator
+        # 1. Group active slots by their current evaluator and required simulations (PCR)
         groups = {}
         for slot_idx, game_idx in enumerate(active_slots):
             if game_idx is None:
@@ -263,10 +290,21 @@ def play_vectorized_games(
             board = boards[slot_idx]
             current_player = board.to_play()
             evaluator = black_evaluators[game_idx] if current_player == GoBoard.BLACK else white_evaluators[game_idx]
-            groups.setdefault(evaluator, []).append((slot_idx, game_idx, board))
+            
+            # PCR simulation count decision
+            move_count = move_counts[slot_idx]
+            game_seed = seed + game_idx * 500 + move_count
+            rng_pcr = np.random.default_rng(game_seed)
+            
+            if pcr_enabled:
+                sims = n_simulations if rng_pcr.random() < pcr_high_prob else pcr_low_sims
+            else:
+                sims = n_simulations
+                
+            groups.setdefault((evaluator, sims), []).append((slot_idx, game_idx, board))
 
         # 2. For each group, perform vectorized MCTS search
-        for evaluator, slot_tuples in groups.items():
+        for (evaluator, sims), slot_tuples in groups.items():
             group_slots = [t[0] for t in slot_tuples]
             group_games = [t[1] for t in slot_tuples]
             group_boards = [t[2] for t in slot_tuples]
@@ -293,13 +331,14 @@ def play_vectorized_games(
                 return evaluator.evaluate_batch(eval_inputs)
 
             # Run simulations
-            vector_mcts.run_simulations(n_simulations, batched_evaluator_cb)
+            vector_mcts.run_simulations(sims, batched_evaluator_cb)
 
-            # Get visit distributions
+            # Get visit distributions and root Q-values
             probs_list = vector_mcts.get_action_probabilities(1.0)
+            q_values_list = vector_mcts.get_root_q_values()
 
             # Process actions for this group
-            for slot_idx, game_idx, board, probs_cpp in zip(group_slots, group_games, group_boards, probs_list):
+            for slot_idx, game_idx, board, probs_cpp, root_q in zip(group_slots, group_games, group_boards, probs_list, q_values_list):
                 move_count = move_counts[slot_idx]
                 game_seed = seed + game_idx * 500 + move_count
 
@@ -335,6 +374,11 @@ def play_vectorized_games(
                 records[game_idx].boards.append(board.to_numpy().copy())
                 records[game_idx].mcts_policies.append(dense_policy)
                 records[game_idx].moves.append(move)
+                
+                # Record is_teacher: True if it was a high-sim move, False otherwise
+                is_high_sim = (sims == n_simulations)
+                records[game_idx].is_teacher.append(is_high_sim)
+                records[game_idx].root_q_values.append(float(root_q))
 
                 # Play the move
                 if move == (-1, -1):
@@ -346,6 +390,16 @@ def play_vectorized_games(
 
                 move_counts[slot_idx] += 1
 
+                # Update consecutive low win rates (resignation check)
+                if resign_threshold > 0.0 and not records[game_idx].no_resign:
+                    win_prob = 1.0 - root_q
+                    if win_prob < resign_threshold:
+                        consec_low_win_rates[slot_idx] += 1
+                    else:
+                        consec_low_win_rates[slot_idx] = 0
+                else:
+                    consec_low_win_rates[slot_idx] = 0
+
         # 3. Check for completed games in the active slots and refill
         for slot_idx in range(len(boards)):
             game_idx = active_slots[slot_idx]
@@ -353,18 +407,38 @@ def play_vectorized_games(
                 continue
             board = boards[slot_idx]
 
-            # Check if game is finished
-            if board.is_game_over() or consec_passes[slot_idx] >= 2 or move_counts[slot_idx] >= max_moves:
-                termination = "double_pass" if consec_passes[slot_idx] >= 2 or board.is_game_over() else "max_moves"
-                winner = board.get_winner()
-                score = board.score()
+            # Determine if resigned (must have played > 20 moves to avoid early noise)
+            is_resigned = (
+                resign_threshold > 0.0
+                and not records[game_idx].no_resign
+                and consec_low_win_rates[slot_idx] >= 3
+                and move_counts[slot_idx] > 20
+            )
 
-                if score > 0:
-                    result = f"B+{score:.1f}"
-                elif score < 0:
-                    result = f"W+{-score:.1f}"
+            # Check if game is finished
+            if board.is_game_over() or consec_passes[slot_idx] >= 2 or move_counts[slot_idx] >= max_moves or is_resigned:
+                if is_resigned:
+                    termination = "resign"
+                    winner = 3 - board.to_play() # Opponent wins
+                    score = board.score()
+                    # Make score consistent with winner (if winner is White, score must be negative, etc.)
+                    if winner == 2 and score > 0:
+                        score = -score
+                    elif winner == 1 and score < 0:
+                        score = -score
+                    
+                    result = "W+Resign" if winner == 2 else "B+Resign"
+                    records[game_idx].resigned = True
                 else:
-                    result = "Draw"
+                    termination = "double_pass" if consec_passes[slot_idx] >= 2 or board.is_game_over() else "max_moves"
+                    winner = board.get_winner()
+                    score = board.score()
+                    if score > 0:
+                        result = f"B+{score:.1f}"
+                    elif score < 0:
+                        result = f"W+{-score:.1f}"
+                    else:
+                        result = "Draw"
 
                 records[game_idx].winner = winner
                 records[game_idx].result = result
@@ -380,6 +454,7 @@ def play_vectorized_games(
                     boards[slot_idx] = GoBoard(board_size, 7.5 + (next_game_idx + 1) * 1e-6)
                     consec_passes[slot_idx] = 0
                     move_counts[slot_idx] = 0
+                    consec_low_win_rates[slot_idx] = 0
                     active_slots[slot_idx] = next_game_idx
                     next_game_idx += 1
                 else:
@@ -391,16 +466,19 @@ def play_vectorized_games(
         new_boards = []
         new_consec_passes = []
         new_move_counts = []
+        new_consec_low_win_rates = []
         for s_idx, g_idx in enumerate(active_slots):
             if g_idx is not None:
                 new_active_slots.append(g_idx)
                 new_boards.append(boards[s_idx])
                 new_consec_passes.append(consec_passes[s_idx])
                 new_move_counts.append(move_counts[s_idx])
+                new_consec_low_win_rates.append(consec_low_win_rates[s_idx])
         active_slots = new_active_slots
         boards = new_boards
         consec_passes = new_consec_passes
         move_counts = new_move_counts
+        consec_low_win_rates = new_consec_low_win_rates
 
         step_count += 1
         step_duration = time.perf_counter() - step_start_time
