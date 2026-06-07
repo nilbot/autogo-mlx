@@ -265,7 +265,8 @@ def play_vectorized_games(
     boards = [GoBoard(board_size, 7.5 + (game_idx + 1) * 1e-6) for slot_idx, game_idx in enumerate(active_slots)]
     consec_passes = [0] * max_active
     move_counts = [0] * max_active
-    consec_low_win_rates = [0] * max_active
+    consec_low_win_rates_black = [0] * max_active
+    consec_low_win_rates_white = [0] * max_active
     
     next_game_idx = max_active
     completed_games = 0
@@ -393,12 +394,20 @@ def play_vectorized_games(
                 # Update consecutive low win rates (resignation check)
                 if resign_threshold > 0.0 and not records[game_idx].no_resign:
                     win_prob = 1.0 - root_q
-                    if win_prob < resign_threshold:
-                        consec_low_win_rates[slot_idx] += 1
-                    else:
-                        consec_low_win_rates[slot_idx] = 0
+                    current_player = board.to_play() # GoBoard.BLACK=1, GoBoard.WHITE=2
+                    if current_player == 1: # BLACK
+                        if win_prob < resign_threshold:
+                            consec_low_win_rates_black[slot_idx] += 1
+                        else:
+                            consec_low_win_rates_black[slot_idx] = 0
+                    else: # WHITE
+                        if win_prob < resign_threshold:
+                            consec_low_win_rates_white[slot_idx] += 1
+                        else:
+                            consec_low_win_rates_white[slot_idx] = 0
                 else:
-                    consec_low_win_rates[slot_idx] = 0
+                    consec_low_win_rates_black[slot_idx] = 0
+                    consec_low_win_rates_white[slot_idx] = 0
 
         # 3. Check for completed games in the active slots and refill
         for slot_idx in range(len(boards)):
@@ -411,7 +420,7 @@ def play_vectorized_games(
             is_resigned = (
                 resign_threshold > 0.0
                 and not records[game_idx].no_resign
-                and consec_low_win_rates[slot_idx] >= 3
+                and (consec_low_win_rates_black[slot_idx] >= 3 or consec_low_win_rates_white[slot_idx] >= 3)
                 and move_counts[slot_idx] > 20
             )
 
@@ -454,7 +463,8 @@ def play_vectorized_games(
                     boards[slot_idx] = GoBoard(board_size, 7.5 + (next_game_idx + 1) * 1e-6)
                     consec_passes[slot_idx] = 0
                     move_counts[slot_idx] = 0
-                    consec_low_win_rates[slot_idx] = 0
+                    consec_low_win_rates_black[slot_idx] = 0
+                    consec_low_win_rates_white[slot_idx] = 0
                     active_slots[slot_idx] = next_game_idx
                     next_game_idx += 1
                 else:
@@ -466,19 +476,22 @@ def play_vectorized_games(
         new_boards = []
         new_consec_passes = []
         new_move_counts = []
-        new_consec_low_win_rates = []
+        new_consec_low_win_rates_black = []
+        new_consec_low_win_rates_white = []
         for s_idx, g_idx in enumerate(active_slots):
             if g_idx is not None:
                 new_active_slots.append(g_idx)
                 new_boards.append(boards[s_idx])
                 new_consec_passes.append(consec_passes[s_idx])
                 new_move_counts.append(move_counts[s_idx])
-                new_consec_low_win_rates.append(consec_low_win_rates[s_idx])
+                new_consec_low_win_rates_black.append(consec_low_win_rates_black[s_idx])
+                new_consec_low_win_rates_white.append(consec_low_win_rates_white[s_idx])
         active_slots = new_active_slots
         boards = new_boards
         consec_passes = new_consec_passes
         move_counts = new_move_counts
-        consec_low_win_rates = new_consec_low_win_rates
+        consec_low_win_rates_black = new_consec_low_win_rates_black
+        consec_low_win_rates_white = new_consec_low_win_rates_white
 
         step_count += 1
         step_duration = time.perf_counter() - step_start_time

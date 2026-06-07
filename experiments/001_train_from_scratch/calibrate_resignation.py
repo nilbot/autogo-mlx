@@ -60,7 +60,8 @@ def calibrate(save_dir, target_config_path, target_fpr=0.01):
             root_q_vals = game["root_q_values"]
             n_moves = len(moves)
 
-            consec_low_win = 0
+            consec_low_black = 0
+            consec_low_white = 0
             resigned = False
             resigning_player = 0
 
@@ -70,17 +71,26 @@ def calibrate(save_dir, target_config_path, target_fpr=0.01):
                 q = root_q_vals[t]
                 # Player to play win rate
                 win_prob = 1.0 - q
+                player = 1 if t % 2 == 0 else 2
                 
-                if win_prob < T:
-                    consec_low_win += 1
-                else:
-                    consec_low_win = 0
-
-                if consec_low_win >= 3:
-                    # Player to play resigns
-                    resigned = True
-                    resigning_player = 1 if t % 2 == 0 else 2
-                    break
+                if player == 1: # BLACK
+                    if win_prob < T:
+                        consec_low_black += 1
+                    else:
+                        consec_low_black = 0
+                    if consec_low_black >= 3:
+                        resigned = True
+                        resigning_player = 1
+                        break
+                else: # WHITE
+                    if win_prob < T:
+                        consec_low_white += 1
+                    else:
+                        consec_low_white = 0
+                    if consec_low_white >= 3:
+                        resigned = True
+                        resigning_player = 2
+                        break
 
             if resigned:
                 total_resigned += 1
