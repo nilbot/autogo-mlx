@@ -139,11 +139,21 @@ def main() -> None:
         winner: mx.array,
         is_teacher: mx.array,
         final_score: mx.array | None = None,
-    ) -> tuple[mx.array, tuple[mx.array, mx.array]]:
-        loss, pol_loss, val_loss = compute_dense_loss(
-            model, board, mask, mcts_policy, winner, is_teacher, score_target_B=final_score
+        ownership_target: mx.array | None = None,
+        has_ownership: mx.array | None = None,
+    ) -> tuple[mx.array, tuple[mx.array, mx.array, mx.array]]:
+        loss, pol_loss, val_loss, own_loss = compute_dense_loss(
+            model,
+            board,
+            mask,
+            mcts_policy,
+            winner,
+            is_teacher,
+            score_target_B=final_score,
+            ownership_target_BHW=ownership_target,
+            has_ownership_target_B=has_ownership,
         )
-        return loss, (pol_loss, val_loss)
+        return loss, (pol_loss, val_loss, own_loss)
 
     loss_and_grad_fn = nn.value_and_grad(model, loss_fn)
 
@@ -154,11 +164,45 @@ def main() -> None:
         mcts_policy: mx.array,
         winner: mx.array,
         is_teacher: mx.array,
-        final_score: mx.array | None = None,
-    ) -> tuple[mx.array, mx.array, mx.array, mx.array, mx.array]:
-        (loss, (pol_loss, val_loss)), grads = loss_and_grad_fn(
-            model, board, mask, mcts_policy, winner, is_teacher, final_score
+        final_score: mx.array | None,
+        ownership_target: mx.array | None,
+        has_ownership: mx.array | None,
+        step: int,
+    ) -> tuple[mx.array, mx.array, mx.array, mx.array, mx.array, mx.array]:
+        (loss, (pol_loss, val_loss, own_loss)), grads = loss_and_grad_fn(
+            model,
+            board,
+            mask,
+            mcts_policy,
+            winner,
+            is_teacher,
+            final_score,
+            ownership_target,
+            has_ownership,
         )
+
+        # Head Warm-Up Phase: freeze trunk and policy during first 1000 steps
+        if step <= 1000:
+            def freeze_gradients_recursive(grads_dict, prefix=""):
+                if isinstance(grads_dict, dict):
+                    for k, v in list(grads_dict.items()):
+                        full_key = f"{prefix}.{k}" if prefix else k
+                        if isinstance(v, (dict, list)):
+                            freeze_gradients_recursive(v, full_key)
+                        else:
+                            if not any(h in full_key for h in ["value", "score", "ownership"]):
+                                grads_dict[k] = mx.zeros_like(v)
+                elif isinstance(grads_dict, list):
+                    for i, v in enumerate(grads_dict):
+                        full_key = f"{prefix}[{i}]"
+                        if isinstance(v, (dict, list)):
+                            freeze_gradients_recursive(v, full_key)
+                        else:
+                            if not any(h in full_key for h in ["value", "score", "ownership"]):
+                                grads_dict[i] = mx.zeros_like(v)
+
+            freeze_gradients_recursive(grads)
+
         optimizer.update(model, grads)
 
         # Calculate policy accuracy (teacher samples only)
@@ -175,7 +219,7 @@ def main() -> None:
         else:
             score_mae = mx.array(0.0)
 
-        return loss, pol_loss, val_loss, accuracy, score_mae
+        return loss, pol_loss, val_loss, own_loss, accuracy, score_mae
 
     print(
         f"Starting training on {mx.default_device()} for {args.steps} steps...",
@@ -189,6 +233,7 @@ def main() -> None:
     losses = []
     policy_losses = []
     value_losses = []
+    ownership_losses = []
     accuracies = []
     score_maes = []
 
@@ -211,10 +256,24 @@ def main() -> None:
         final_score = (
             mx.array(batch["final_score_B"]) if "final_score_B" in batch else None
         )
+        ownership_target = (
+            mx.array(batch["ownership_target_BHW"]) if "ownership_target_BHW" in batch else None
+        )
+        has_ownership = (
+            mx.array(batch["has_ownership_target_B"]) if "has_ownership_target_B" in batch else None
+        )
 
         # Execute step
-        loss, pol_loss, val_loss, accuracy, score_mae = train_step(
-            board, mask, mcts_policy, winner, is_teacher, final_score
+        loss, pol_loss, val_loss, own_loss, accuracy, score_mae = train_step(
+            board,
+            mask,
+            mcts_policy,
+            winner,
+            is_teacher,
+            final_score,
+            ownership_target,
+            has_ownership,
+            step,
         )
 
         # Force evaluation of the returned scalars and state updates
@@ -222,6 +281,7 @@ def main() -> None:
             loss,
             pol_loss,
             val_loss,
+            own_loss,
             accuracy,
             score_mae,
             model.parameters(),
@@ -231,6 +291,7 @@ def main() -> None:
         losses.append(loss.item())
         policy_losses.append(pol_loss.item())
         value_losses.append(val_loss.item())
+        ownership_losses.append(own_loss.item())
         accuracies.append(accuracy.item())
         score_maes.append(score_mae.item())
 
@@ -240,13 +301,14 @@ def main() -> None:
             roll_loss = np.mean(losses[-window:])
             roll_pol = np.mean(policy_losses[-window:])
             roll_val = np.mean(value_losses[-window:])
+            roll_own = np.mean(ownership_losses[-window:])
             roll_acc = np.mean(accuracies[-window:])
             roll_mae = np.mean(score_maes[-window:])
 
             score_log = f", Score MAE: {roll_mae:.2f}" if args.in_channels == 18 else ""
             print(
                 f"Step {step:04d}/{args.steps:04d} | "
-                f"Loss: {roll_loss:.4f} (Pol: {roll_pol:.4f}, Val: {roll_val:.4f}) | "
+                f"Loss: {roll_loss:.4f} (Pol: {roll_pol:.4f}, Val: {roll_val:.4f}, Own: {roll_own:.4f}) | "
                 f"Train Policy Acc: {roll_acc:.2%}{score_log} | "
                 f"lr: {optimizer.learning_rate.item():.6f}",
                 flush=True,
@@ -266,11 +328,12 @@ def main() -> None:
     avg_loss = np.mean(losses[-100:])
     avg_pol = np.mean(policy_losses[-100:])
     avg_val = np.mean(value_losses[-100:])
+    avg_own = np.mean(ownership_losses[-100:])
     avg_acc = np.mean(accuracies[-100:])
     avg_mae = np.mean(score_maes[-100:])
     print("\nFinal average metrics over last 100 steps:", flush=True)
     print(
-        f"  Loss: {avg_loss:.4f} (Pol: {avg_pol:.4f}, Val: {avg_val:.4f})", flush=True
+        f"  Loss: {avg_loss:.4f} (Pol: {avg_pol:.4f}, Val: {avg_val:.4f}, Own: {avg_own:.4f})", flush=True
     )
     print(f"  Policy Acc: {avg_acc:.2%}", flush=True)
     if args.in_channels == 18:

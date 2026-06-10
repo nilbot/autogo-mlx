@@ -115,6 +115,66 @@ def _d4_policy(policy_BA: np.ndarray, sym: int, board_size: int) -> np.ndarray:
     return np.concatenate([pos_flat, policy_BA[..., spatial:]], axis=-1)
 
 
+def compute_tromp_taylor_ownership(board_HW: np.ndarray) -> np.ndarray:
+    """Computes the final Tromp-Taylor ownership map for a given board state.
+    
+    1. All stones of player X are owned by X.
+    2. Empty regions surrounded exclusively by player X are owned by X.
+    3. Empty regions surrounded by both players or neither are neutral (0).
+    
+    Returns a grid (H, W) where:
+    +1.0 = BLACK territory/stones
+    -1.0 = WHITE territory/stones
+     0.0 = Neutral / Dame / Seki
+    """
+    h, w = board_HW.shape
+    ownership = np.zeros((h, w), dtype=np.float32)
+    
+    # 1. Fill in existing stones
+    ownership[board_HW == 1] = 1.0  # BLACK is +1
+    ownership[board_HW == 2] = -1.0 # WHITE is -1
+    
+    # 2. Find and flood-fill empty regions
+    visited = np.zeros((h, w), dtype=bool)
+    
+    for r in range(h):
+        for c in range(w):
+            if board_HW[r, c] == 0 and not visited[r, c]:
+                region_coords = []
+                queue = [(r, c)]
+                visited[r, c] = True
+                
+                border_players = set()
+                
+                head = 0
+                while head < len(queue):
+                    curr_r, curr_c = queue[head]
+                    head += 1
+                    region_coords.append((curr_r, curr_c))
+                    
+                    for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                        nr, nc = curr_r + dr, curr_c + dc
+                        if 0 <= nr < h and 0 <= nc < w:
+                            neighbor_val = board_HW[nr, nc]
+                            if neighbor_val == 0:
+                                if not visited[nr, nc]:
+                                    visited[nr, nc] = True
+                                    queue.append((nr, nc))
+                            else:
+                                border_players.add(neighbor_val)
+                                
+                if len(border_players) == 1:
+                    owner = border_players.pop()
+                    val = 1.0 if owner == 1 else -1.0
+                else:
+                    val = 0.0
+                    
+                for rr, cc in region_coords:
+                    ownership[rr, cc] = val
+                    
+    return ownership
+
+
 def _compute_liberties_numpy(
     board_HW: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -378,6 +438,23 @@ class GoDataset:
 
         margin = game_score if current_player == BLACK else -game_score
 
+        # Phase 2: Tromp-Taylor Ownership Targets
+        resigned = bool(data["resigned"]) if "resigned" in data else False
+        ownership_target = np.zeros((bs, bs), dtype=np.float32)
+        has_ownership = False
+
+        if not resigned:
+            # Game ended via double-pass. Compute ownership on final board.
+            final_raw_board = data["boards"][-1]
+            h_raw, w_raw = final_raw_board.shape
+            own_raw = compute_tromp_taylor_ownership(final_raw_board)
+            ownership_target[:h_raw, :w_raw] = own_raw
+            
+            # Flip sign if it's White's turn to play (so it is from current player's perspective)
+            if current_player == WHITE:
+                ownership_target = -ownership_target
+            has_ownership = True
+
         sample: dict[str, Any] = {
             "board": board,
             "mask": mask,
@@ -385,6 +462,8 @@ class GoDataset:
             "is_teacher": is_teacher,
             "current_player": np.int8(current_player),
             "final_score": np.float32(margin),
+            "ownership_target": ownership_target,
+            "has_ownership": has_ownership,
         }
 
         if self.in_channels == 8:
@@ -579,6 +658,8 @@ class GoDataset:
                 policies_BA = np.zeros((b, bs * bs + 1), dtype=np.float32)
 
             final_scores_B = np.array([s["final_score"] for s in samples], dtype=np.float32)
+            ownership_target_BHW = np.stack([s["ownership_target"] for s in samples])
+            has_ownership_target_B = np.array([s["has_ownership"] for s in samples], dtype=np.float32)
 
             if self.in_channels == 8:
                 lib_1_BHW = np.stack([s["lib_1"] for s in samples])
@@ -597,6 +678,7 @@ class GoDataset:
                 boards_BHW = _d4_apply(boards_BHW, sym)
                 masks_BHW = _d4_apply(masks_BHW, sym)
                 policies_BA = _d4_policy(policies_BA, sym, bs)
+                ownership_target_BHW = _d4_apply(ownership_target_BHW, sym)
                 if self.in_channels == 8:
                     lib_1_BHW = _d4_apply(lib_1_BHW, sym)
                     lib_2_BHW = _d4_apply(lib_2_BHW, sym)
@@ -635,6 +717,8 @@ class GoDataset:
                 "winner_B": winners_B,
                 "is_teacher_B": is_teacher_B,
                 "final_score_B": final_scores_B,
+                "ownership_target_BHW": ownership_target_BHW,
+                "has_ownership_target_B": has_ownership_target_B,
             }
 
     # ---- diagnostics ------------------------------------------------------

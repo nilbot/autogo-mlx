@@ -1,4 +1,4 @@
-"""Phase 2a — dense MCTS-target policy CE + value BCE loss.
+"""Phase 2a — dense MCTS-target policy CE + value BCE loss + spatial ownership loss.
 
 Mirrors :py:meth:`SizeInvariantGoResNet.compute_dense_loss` in the upstream
 PyTorch reference (``third_party/autogo/src/alpha_go/model.py:669``). The
@@ -7,9 +7,6 @@ MCTS visit distribution — including the pass action at index ``H*W`` — and i
 averaged over teacher samples only via ``is_teacher_B``. The value term is a
 binary cross-entropy from the raw value logit against a ``{0, 1}``
 self-perspective winner label, averaged across the full batch.
-
-Returns ``(total, policy, value)`` so trainers can log the three numbers
-independently; ``total = policy + value`` exactly, with no extra weighting.
 """
 
 from __future__ import annotations
@@ -28,8 +25,10 @@ def compute_dense_loss(
     winner_B: mx.array,
     is_teacher_B: mx.array,
     score_target_B: mx.array | None = None,
-) -> tuple[mx.array, mx.array, mx.array]:
-    """Dense-target policy CE + value BCE + auxiliary score MSE; returns ``(total, policy, value)``.
+    ownership_target_BHW: mx.array | None = None,
+    has_ownership_target_B: mx.array | None = None,
+) -> tuple[mx.array, mx.array, mx.array, mx.array]:
+    """Dense-target policy CE + value BCE + auxiliary score MSE + spatial ownership MSE; returns (total, policy, value, ownership).
 
     Args:
         model: ``SizeInvariantGoResNet`` (or any module with the same
@@ -46,16 +45,26 @@ def compute_dense_loss(
         is_teacher_B: ``(B,)`` 0/1 mask, 1 where the policy target was
             produced by an MCTS teacher (so worth supervising against).
         score_target_B: ``(B,)`` self-perspective final score margin (float).
-
-    The policy normalisation is ``(w * ce).sum() / max(w.sum(), 1)`` rather
-    than ``ce.mean() * (w == 1)`` — this matches the upstream and stays
-    finite even on all-zero ``is_teacher_B`` batches (value loss still flows).
+        ownership_target_BHW: ``(B, H, W)`` spatial target territory margin (-1.0 to +1.0).
+        has_ownership_target_B: ``(B,)`` 0/1 mask indicating if sample has valid ownership target (double-pass ending).
     """
-    if score_target_B is not None:
-        policy_BC, value_B, score_B = model(board_BHWC, mask_BHW, return_score=True)
+    if ownership_target_BHW is not None:
+        if score_target_B is not None:
+            policy_BC, value_B, score_B, ownership_BHW = model(
+                board_BHWC, mask_BHW, return_score=True, return_ownership=True
+            )
+        else:
+            policy_BC, value_B, ownership_BHW = model(
+                board_BHWC, mask_BHW, return_ownership=True
+            )
+            score_B = None
     else:
-        policy_BC, value_B = model(board_BHWC, mask_BHW)
-        score_B = None
+        if score_target_B is not None:
+            policy_BC, value_B, score_B = model(board_BHWC, mask_BHW, return_score=True)
+        else:
+            policy_BC, value_B = model(board_BHWC, mask_BHW)
+            score_B = None
+        ownership_BHW = None
 
     log_probs_BC = policy_BC - mx.logsumexp(policy_BC, axis=-1, keepdims=True)
     policy_ce_B = -(mcts_policy_BC * log_probs_BC).sum(axis=-1)
@@ -71,14 +80,36 @@ def compute_dense_loss(
 
     if score_B is not None and score_target_B is not None:
         # Score regression loss: MSE between predicted score and final score target.
-        # We weight the score loss by 0.01 so it acts as a regularizer without dominating.
         score_loss = nn.losses.mse_loss(
             score_B,
             score_target_B.astype(score_B.dtype),
             reduction="mean",
         )
-        total_loss = policy_loss + value_loss + 0.01 * score_loss
     else:
-        total_loss = policy_loss + value_loss
+        score_loss = mx.array(0.0)
 
-    return total_loss, policy_loss, value_loss
+    if ownership_BHW is not None and ownership_target_BHW is not None:
+        # Spatial MSE: (pred - target)**2
+        diff_sq = (ownership_BHW - ownership_target_BHW.astype(ownership_BHW.dtype)) ** 2
+        
+        # Apply spatial mask to ignore padded positions
+        if mask_BHW is not None:
+            diff_sq = diff_sq * mask_BHW.astype(diff_sq.dtype)
+            spatial_denom = mx.maximum(mask_BHW.sum(axis=(1, 2)), 1.0)
+            mean_spatial_B = diff_sq.sum(axis=(1, 2)) / spatial_denom
+        else:
+            mean_spatial_B = diff_sq.mean(axis=(1, 2))
+
+        # Apply batch mask: only double-pass games contribute
+        if has_ownership_target_B is not None:
+            w_own = has_ownership_target_B.astype(mean_spatial_B.dtype)
+            ownership_loss = (mean_spatial_B * w_own).sum() / mx.maximum(w_own.sum(), 1.0)
+        else:
+            ownership_loss = mean_spatial_B.mean()
+    else:
+        ownership_loss = mx.array(0.0)
+
+    # Combine total joint loss: policy + value + 0.01 * score + 0.1 * ownership
+    total_loss = policy_loss + value_loss + 0.01 * score_loss + 0.1 * ownership_loss
+
+    return total_loss, policy_loss, value_loss, ownership_loss

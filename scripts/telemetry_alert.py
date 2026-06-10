@@ -797,7 +797,7 @@ def main() -> None:
         if has_selfplay:
             print(f"  🟢 Self-play dataset has healthy move diversity ({selfplay_metrics['opening_vocab_size']} unique openings) and captures.")
             
-        if args.iteration >= 10:
+        if args.iteration >= 21:
             print(f"\n🛑 STOP TRIGGER: Iteration {args.iteration} reached. Aborting iteration loop to transition to Phase 2.")
             print("="*70)
             sys.exit(99)

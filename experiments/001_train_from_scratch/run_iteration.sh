@@ -195,10 +195,31 @@ for ITER in $(seq "$START" "$END"); do
     NEXT=$((ITER + 1))
     NEXT_CKPT="${EXP_DIR}/checkpoints/iter${NEXT}.safetensors"
     
+    # Replay symlinking: combine current iteration and past two iterations
+    REPLAY_DIR="${EXP_DIR}/selfplay/replay_buffer"
+    rm -rf "$REPLAY_DIR" && mkdir -p "$REPLAY_DIR"
+    echo "--> Symlinking current iteration games to replay buffer..."
+    ln -s "$DATA_DIR"/game_*.npz "$REPLAY_DIR"/
+    
+    if [ "$ITER" -gt 0 ]; then
+        PREV1_DIR="${EXP_DIR}/selfplay/iter$((ITER - 1))"
+        if [ -d "$PREV1_DIR" ] && [ -n "$(find "$PREV1_DIR" -name "game_*.npz" -print -quit 2>/dev/null)" ]; then
+            echo "--> Symlinking past iteration $((ITER - 1)) games to replay buffer..."
+            ln -s "$PREV1_DIR"/game_*.npz "$REPLAY_DIR"/
+        fi
+    fi
+    if [ "$ITER" -gt 1 ]; then
+        PREV2_DIR="${EXP_DIR}/selfplay/iter$((ITER - 2))"
+        if [ -d "$PREV2_DIR" ] && [ -n "$(find "$PREV2_DIR" -name "game_*.npz" -print -quit 2>/dev/null)" ]; then
+            echo "--> Symlinking past iteration $((ITER - 2)) games to replay buffer..."
+            ln -s "$PREV2_DIR"/game_*.npz "$REPLAY_DIR"/
+        fi
+    fi
+
     echo "--> Training: optimizing checkpoint iter${NEXT} for ${TRAIN_STEPS} steps..."
     t0=$(date +%s)
     uv run python "${EXP_DIR}/train.py" \
-        --dataset-dir "$DATA_DIR" \
+        --dataset-dir "$REPLAY_DIR" \
         --resume-from "$CKPT" \
         --save-checkpoint "$NEXT_CKPT" \
         --steps "$TRAIN_STEPS" \
@@ -209,6 +230,21 @@ for ITER in $(seq "$START" "$END"); do
         2>&1 | tee "${EXP_DIR}/logs/train_iter${NEXT}.log"
     t1=$(date +%s)
     echo "--> Training took $((t1 - t0)) seconds."
+    print_vram
+    
+    # Train Sibling Model for diversified league play
+    SIB_CKPT="${EXP_DIR}/checkpoints/iter${NEXT}_sibling.safetensors"
+    echo "--> Training Sibling Model: optimizing checkpoints iter${NEXT}_sibling..."
+    uv run python "${EXP_DIR}/train.py" \
+        --dataset-dir "$REPLAY_DIR" \
+        --resume-from "$CKPT" \
+        --save-checkpoint "$SIB_CKPT" \
+        --steps "$TRAIN_STEPS" \
+        --lr 2e-3 \
+        --batch-size 64 \
+        --seed $((142 + ITER * 200)) \
+        --in-channels "$IN_CHANNELS" \
+        2>&1 | tee "${EXP_DIR}/logs/train_sibling_iter${NEXT}.log"
     print_vram
     
     # 3. Telemetry Sanity Check (Fail-Fast)

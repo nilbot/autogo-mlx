@@ -200,6 +200,11 @@ class SizeInvariantGoResNet(nn.Module):
         self.score_fc1 = nn.Linear(channels, value_hidden)
         self.score_fc2 = nn.Linear(value_hidden, 1)
 
+        # Phase 2: Dense Spatial Ownership Head
+        self.ownership_conv1 = nn.Conv2d(channels, 32, kernel_size=3, padding=1, bias=False)
+        self.ownership_bn = norm_cls(32)
+        self.ownership_conv2 = nn.Conv2d(32, 1, kernel_size=1, bias=True)
+
         self._init_weights()
 
     def _init_weights(self) -> None:
@@ -226,10 +231,20 @@ class SizeInvariantGoResNet(nn.Module):
         self.value_fc2.bias = mx.zeros(self.value_fc2.bias.shape)
         self.score_fc2.weight = mx.zeros(self.score_fc2.weight.shape)
         self.score_fc2.bias = mx.zeros(self.score_fc2.bias.shape)
+        self.ownership_conv2.weight = mx.zeros(self.ownership_conv2.weight.shape)
+        self.ownership_conv2.bias = mx.zeros(self.ownership_conv2.bias.shape)
 
     def __call__(
-        self, board_BHWC: mx.array, mask_BHW: mx.array | None = None, return_score: bool = False
-    ) -> tuple[mx.array, mx.array] | tuple[mx.array, mx.array, mx.array]:
+        self,
+        board_BHWC: mx.array,
+        mask_BHW: mx.array | None = None,
+        return_score: bool = False,
+        return_ownership: bool = False,
+    ) -> (
+        tuple[mx.array, mx.array]
+        | tuple[mx.array, mx.array, mx.array]
+        | tuple[mx.array, mx.array, mx.array, mx.array]
+    ):
         B, H, W, _ = board_BHWC.shape
         if mask_BHW is None:
             mask_BHW1 = mx.ones((B, H, W, 1), dtype=board_BHWC.dtype)
@@ -260,6 +275,27 @@ class SizeInvariantGoResNet(nn.Module):
         if return_score:
             s = nn.relu(self.score_fc1(pooled_BC))
             score_B = self.score_fc2(s).squeeze(-1)
+            
+            if return_ownership:
+                own = self.ownership_conv1(x) * mask_BHW1
+                own = nn.relu(self.ownership_bn(own, mask_BHW1))
+                own_logits_BHW = self.ownership_conv2(own).squeeze(-1)
+                # Mask out excess region to be safe
+                if mask_BHW is not None:
+                    own_logits_BHW = own_logits_BHW * mask_BHW
+                ownership_map_BHW = mx.tanh(own_logits_BHW)
+                return policy_BA, value_B, score_B, ownership_map_BHW
+                
             return policy_BA, value_B, score_B
+
+        if return_ownership:
+            own = self.ownership_conv1(x) * mask_BHW1
+            own = nn.relu(self.ownership_bn(own, mask_BHW1))
+            own_logits_BHW = self.ownership_conv2(own).squeeze(-1)
+            # Mask out excess region to be safe
+            if mask_BHW is not None:
+                own_logits_BHW = own_logits_BHW * mask_BHW
+            ownership_map_BHW = mx.tanh(own_logits_BHW)
+            return policy_BA, value_B, ownership_map_BHW
 
         return policy_BA, value_B
