@@ -192,6 +192,7 @@ class MLXNNMCTSAgent:
             tree.run_simulations(self.n_simulations, single_evaluator_cb)
 
         # 4. Extract action probabilities and selected move
+        self.last_root_q = tree.get_root_q_value()
         probs_cpp = tree.get_action_probabilities(self.temperature)
 
         # Build dense policy distribution over actions for GameRecord

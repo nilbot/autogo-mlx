@@ -796,6 +796,12 @@ def main() -> None:
         print(f"  🟢 Policy Equivariance JSD is highly consistent: {d4_metrics['policy_equivariance_jsd']:.4f} bits")
         if has_selfplay:
             print(f"  🟢 Self-play dataset has healthy move diversity ({selfplay_metrics['opening_vocab_size']} unique openings) and captures.")
+            
+        if args.iteration >= 10:
+            print(f"\n🛑 STOP TRIGGER: Iteration {args.iteration} reached. Aborting iteration loop to transition to Phase 2.")
+            print("="*70)
+            sys.exit(99)
+            
         sys.exit(0)
 
 

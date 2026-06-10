@@ -111,11 +111,21 @@ def calibrate(save_dir, target_config_path, target_fpr=0.01):
 
 def write_config(path, threshold):
     path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    pcr_enabled = False
+    if path.exists():
+        try:
+            with open(path, "r") as f:
+                old_config = json.load(f)
+                if "pcr_enabled" in old_config:
+                    pcr_enabled = old_config["pcr_enabled"]
+        except Exception:
+            pass
+
     config = {
         "resign_threshold": float(threshold),
-        "pcr_enabled": True
+        "pcr_enabled": pcr_enabled
     }
+    path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w") as f:
         json.dump(config, f, indent=2)
     print(f"Wrote resignation config to {path}", flush=True)
