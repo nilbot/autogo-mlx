@@ -199,20 +199,20 @@ for ITER in $(seq "$START" "$END"); do
     REPLAY_DIR="${EXP_DIR}/selfplay/replay_buffer"
     rm -rf "$REPLAY_DIR" && mkdir -p "$REPLAY_DIR"
     echo "--> Symlinking current iteration games to replay buffer..."
-    ln -s "$DATA_DIR"/game_*.npz "$REPLAY_DIR"/
+    python3 -c "import os, glob; [os.symlink(f, os.path.join('${REPLAY_DIR}', os.path.basename(f))) for f in glob.glob(os.path.join('${DATA_DIR}', 'game_*.npz'))]"
     
     if [ "$ITER" -gt 0 ]; then
         PREV1_DIR="${EXP_DIR}/selfplay/iter$((ITER - 1))"
         if [ -d "$PREV1_DIR" ] && [ -n "$(find "$PREV1_DIR" -name "game_*.npz" -print -quit 2>/dev/null)" ]; then
             echo "--> Symlinking past iteration $((ITER - 1)) games to replay buffer..."
-            ln -s "$PREV1_DIR"/game_*.npz "$REPLAY_DIR"/
+            python3 -c "import os, glob; [os.symlink(f, os.path.join('${REPLAY_DIR}', os.path.basename(f))) for f in glob.glob(os.path.join('${PREV1_DIR}', 'game_*.npz'))]"
         fi
     fi
     if [ "$ITER" -gt 1 ]; then
         PREV2_DIR="${EXP_DIR}/selfplay/iter$((ITER - 2))"
         if [ -d "$PREV2_DIR" ] && [ -n "$(find "$PREV2_DIR" -name "game_*.npz" -print -quit 2>/dev/null)" ]; then
             echo "--> Symlinking past iteration $((ITER - 2)) games to replay buffer..."
-            ln -s "$PREV2_DIR"/game_*.npz "$REPLAY_DIR"/
+            python3 -c "import os, glob; [os.symlink(f, os.path.join('${REPLAY_DIR}', os.path.basename(f))) for f in glob.glob(os.path.join('${PREV2_DIR}', 'game_*.npz'))]"
         fi
     fi
 
