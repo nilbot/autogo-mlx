@@ -169,6 +169,12 @@ def collate_samples(samples: list[dict[str, Any]], in_channels: int, board_size:
                 
     board_BHWC *= masks_BHW[..., None].astype(np.float32)
     
+    ownership_BHW = np.zeros((b, bs, bs), dtype=np.float32)
+    has_ownership_B = np.zeros(b, dtype=np.float32)
+    if "ownership_target" in samples[0]:
+        ownership_BHW = np.stack([s["ownership_target"] for s in samples])
+        has_ownership_B = np.array([float(s["has_ownership"]) for s in samples], dtype=np.float32)
+
     return {
         "board_BHWC": board_BHWC,
         "mask_BHW": masks_BHW.astype(np.float32),
@@ -176,6 +182,8 @@ def collate_samples(samples: list[dict[str, Any]], in_channels: int, board_size:
         "winner_B": winners_B,
         "is_teacher_B": is_teacher_B,
         "final_score_B": final_scores_B,
+        "ownership_BHW": ownership_BHW,
+        "has_ownership_B": has_ownership_B,
     }
 
 
@@ -648,10 +656,18 @@ def main() -> None:
                 # Run evaluation and calculate loss
                 pol_logits, val_logits = model(boards_mx, masks_mx)
                 
-                total_l, pol_l, val_l = compute_dense_loss(
-                    model, boards_mx, masks_mx, mcts_policy_mx, winner_mx, is_teacher_mx, score_target_B=final_score_mx
+                total_l, pol_l, val_l, own_l = compute_dense_loss(
+                    model,
+                    boards_mx,
+                    masks_mx,
+                    mcts_policy_mx,
+                    winner_mx,
+                    is_teacher_mx,
+                    score_target_B=final_score_mx,
+                    ownership_target_BHW=mx.array(batch["ownership_BHW"]),
+                    has_ownership_target_B=mx.array(batch["has_ownership_B"]),
                 )
-                mx.eval(total_l, pol_l, val_l)
+                mx.eval(total_l, pol_l, val_l, own_l)
                 
                 # Compute accuracies
                 pred_actions = np.argmax(np.array(pol_logits), axis=-1)
@@ -670,6 +686,7 @@ def main() -> None:
                 print(f"  - Total dense loss  : {float(total_l):.4f}")
                 print(f"  - Policy cross-ent  : {float(pol_l):.4f} | MCTS Top Match Accuracy: {pol_acc:.2%}")
                 print(f"  - Value loss (BCE)  : {float(val_l):.4f} | Directional Accuracy   : {val_acc:.2%} (MSE: {val_mse:.4f})")
+                print(f"  - Ownership MSE loss: {float(own_l):.4f}")
                 
                 real_dataset_metrics = {
                     "pol_acc": pol_acc,
@@ -678,6 +695,8 @@ def main() -> None:
                     "pol_loss": float(pol_l)
                 }
             except Exception as e:
+                import traceback
+                traceback.print_exc()
                 print(f"  ⚠️ Validation processing skipped due to error: {e}")
 
     # ------------------ 6. Self-Play Deep Dataset Mining ------------------
