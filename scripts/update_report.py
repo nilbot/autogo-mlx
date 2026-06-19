@@ -23,12 +23,19 @@ LOG_DIR = EXP_DIR / "logs"
 
 def parse_collection_log(log_path: Path, data_dir: Path | None = None) -> dict:
     if not log_path.exists():
-        return {"status": "Pending", "games": 0, "duration": 0.0}
+        return {"status": "Pending", "games": 0, "total_games": 1000, "duration": 0.0}
 
     content = log_path.read_text()
 
+    # Detect total games from config
+    total_games = 1000
+    config_match = re.search(r"num-games=(\d+)", content)
+    if config_match:
+        total_games = int(config_match.group(1))
+
     # Check if finished
     finished_match = re.search(r"Collection completed in ([\d\.]+) seconds", content)
+    already_complete = "Collection already complete" in content
 
     # Count games completed
     games = 0
@@ -39,23 +46,27 @@ def parse_collection_log(log_path: Path, data_dir: Path | None = None) -> dict:
         if game_matches:
             games = int(game_matches[-1])
 
-    if finished_match:
+    if finished_match or already_complete:
+        duration = float(finished_match.group(1)) if finished_match else 0.0
         return {
             "status": "Completed",
-            "games": 1000 if games == 0 else games,
-            "duration": float(finished_match.group(1)),
+            "games": total_games if games == 0 else games,
+            "total_games": total_games,
+            "duration": duration,
         }
 
     if games > 0:
         return {
             "status": "In Progress",
             "games": games,
+            "total_games": total_games,
             "duration": 0.0,
         }
 
     return {
         "status": "Starting",
         "games": 0,
+        "total_games": total_games,
         "duration": 0.0,
     }
 
@@ -65,6 +76,7 @@ def parse_training_log(log_path: Path) -> dict:
         return {
             "status": "Pending",
             "step": 0,
+            "total_steps": 2000,
             "loss": 0.0,
             "pol_loss": 0.0,
             "val_loss": 0.0,
@@ -79,23 +91,25 @@ def parse_training_log(log_path: Path) -> dict:
 
     # Parse last step info
     step_matches = re.findall(
-        r"Step (\d+)/2000 \| Loss: ([\d\.]+) \(Pol: ([\d\.]+), Val: ([\d\.]+)\) \| Train Policy Acc: ([\d\.]+)%",
+        r"Step (\d+)/(\d+) \| Loss: ([\d\.]+) \(Pol: ([\d\.]+), Val: ([\d\.]+)(?:, Own: ([\d\.]+))?\) \| Train Policy Acc: ([\d\.]+)%",
         content,
     )
 
     step = 0
+    total_steps = 2000
     loss, pol_loss, val_loss, acc = 0.0, 0.0, 0.0, 0.0
     if step_matches:
         last_step = step_matches[-1]
         step = int(last_step[0])
-        loss = float(last_step[1])
-        pol_loss = float(last_step[2])
-        val_loss = float(last_step[3])
-        acc = float(last_step[4]) / 100.0
+        total_steps = int(last_step[1])
+        loss = float(last_step[2])
+        pol_loss = float(last_step[3])
+        val_loss = float(last_step[4])
+        acc = float(last_step[-1]) / 100.0
 
     # Parse final avg metrics if available
     avg_match = re.search(
-        r"Final average metrics over last 100 steps:\s+Loss: ([\d\.]+) \(Pol: ([\d\.]+), Val: ([\d\.]+)\)\s+Policy Acc: ([\d\.]+)%",
+        r"Final average metrics over last 100 steps:\s+Loss: ([\d\.]+) \(Pol: ([\d\.]+), Val: ([\d\.]+)(?:, Own: ([\d\.]+))?\)\s+Policy Acc: ([\d\.]+)%",
         content,
     )
 
@@ -103,12 +117,13 @@ def parse_training_log(log_path: Path) -> dict:
         loss = float(avg_match.group(1))
         pol_loss = float(avg_match.group(2))
         val_loss = float(avg_match.group(3))
-        acc = float(avg_match.group(4)) / 100.0
+        acc = float(avg_match.groups()[-1]) / 100.0
 
     if finished_match:
         return {
             "status": "Completed",
-            "step": 2000,
+            "step": total_steps,
+            "total_steps": total_steps,
             "loss": loss,
             "pol_loss": pol_loss,
             "val_loss": val_loss,
@@ -120,6 +135,7 @@ def parse_training_log(log_path: Path) -> dict:
         return {
             "status": "In Progress",
             "step": step,
+            "total_steps": total_steps,
             "loss": loss,
             "pol_loss": pol_loss,
             "val_loss": val_loss,
@@ -130,6 +146,7 @@ def parse_training_log(log_path: Path) -> dict:
     return {
         "status": "Starting",
         "step": 0,
+        "total_steps": 2000,
         "loss": 0.0,
         "pol_loss": 0.0,
         "val_loss": 0.0,
@@ -230,9 +247,9 @@ def generate_report(brain_dir: Path | None = None) -> None:
         (
             "Bootstrap Collection",
             boot_collect["status"],
-            boot_collect.get("games", 0) / 1000.0,
+            boot_collect.get("games", 0) / float(boot_collect.get("total_games", 1000)),
             boot_collect["duration"],
-            f"{boot_collect.get('games', 0)}/1000 games",
+            f"{boot_collect.get('games', 0)}/{boot_collect.get('total_games', 1000)} games",
             "",
         )
     )
@@ -240,9 +257,9 @@ def generate_report(brain_dir: Path | None = None) -> None:
         (
             "Bootstrap Training",
             boot_train["status"],
-            boot_train["step"] / 2000.0,
+            boot_train["step"] / float(boot_train.get("total_steps", 2000)),
             boot_train["duration"],
-            f"Step {boot_train['step']}/2000",
+            f"Step {boot_train['step']}/{boot_train.get('total_steps', 2000)}",
             f"Loss={boot_train['loss']:.4f}, Acc={boot_train['acc']:.2%}",
         )
     )
@@ -259,9 +276,9 @@ def generate_report(brain_dir: Path | None = None) -> None:
             (
                 f"Iter {i} Self-Play",
                 c_data["status"],
-                c_data["games"] / 1000.0,
+                c_data["games"] / float(c_data.get("total_games", 1000)),
                 c_data["duration"],
-                f"{c_data['games']}/1000 games",
+                f"{c_data['games']}/{c_data.get('total_games', 1000)} games",
                 "",
             )
         )
@@ -269,9 +286,9 @@ def generate_report(brain_dir: Path | None = None) -> None:
             (
                 f"Iter {i + 1} Training",
                 t_data["status"],
-                t_data["step"] / 2000.0,
+                t_data["step"] / float(t_data.get("total_steps", 2000)),
                 t_data["duration"],
-                f"Step {t_data['step']}/2000",
+                f"Step {t_data['step']}/{t_data.get('total_steps', 2000)}",
                 f"Loss={t_data['loss']:.4f}, Acc={t_data['acc']:.2%}",
             )
         )
