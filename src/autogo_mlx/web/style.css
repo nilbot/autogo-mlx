@@ -264,20 +264,47 @@ input:checked + .switch-slider:before {
     max-height: 150px;
 }
 
-.checkbox-row {
+.radio-row {
     display: flex;
     align-items: center;
     gap: 10px;
     cursor: pointer;
     font-size: 13px;
     color: var(--text-secondary);
+    transition: var(--transition-fast);
 }
 
-.checkbox-row input[type="checkbox"] {
+.radio-row:hover {
+    color: var(--text-primary);
+}
+
+.radio-row input[type="radio"] {
     accent-color: var(--accent-visits);
     width: 15px;
     height: 15px;
     cursor: pointer;
+}
+
+.legend-color-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.legend-color-dot.priors {
+    background-color: var(--accent-prior);
+    box-shadow: 0 0 6px var(--accent-prior);
+}
+
+.legend-color-dot.visits {
+    background-color: var(--accent-visits);
+    box-shadow: 0 0 6px var(--accent-visits);
+}
+
+.legend-color-dot.qval {
+    background-color: var(--accent-q);
+    box-shadow: 0 0 6px var(--accent-q);
 }
 
 /* Buttons Primary/Secondary */
@@ -444,10 +471,57 @@ input:checked + .switch-slider:before {
         0 10px 30px rgba(0, 0, 0, 0.6),
         inset 0 2px 4px rgba(255, 255, 255, 0.2);
     display: inline-block;
+    width: min(520px, 80vw);
+    max-width: 100%;
+    position: relative;
+}
+
+.pass-notification-overlay {
+    position: absolute;
+    inset: 24px;
+    background-color: rgba(9, 9, 9, 0.75);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+    opacity: 1;
+    transition: opacity var(--transition-normal), visibility var(--transition-normal);
+    pointer-events: none;
+    visibility: visible;
+}
+
+.pass-notification-overlay.hidden {
+    opacity: 0;
+    visibility: hidden;
+}
+
+.pass-notification-overlay span {
+    font-family: var(--font-sans);
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: #ffffff;
+    background-color: var(--accent-visits);
+    padding: 14px 28px;
+    border-radius: 50px;
+    box-shadow: 0 4px 20px rgba(240, 98, 51, 0.5);
+    animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes bounceIn {
+    0% { transform: scale(0.3); opacity: 0; }
+    50% { transform: scale(1.05); opacity: 0.8; }
+    70% { transform: scale(0.9); opacity: 0.9; }
+    100% { transform: scale(1); opacity: 1; }
 }
 
 .go-board-container {
     display: grid;
+    width: 100%;
+    aspect-ratio: 1 / 1;
     /* Grid template rows/cols dynamically generated in JS based on board size */
     background: transparent;
     user-select: none;
@@ -574,27 +648,29 @@ input:checked + .switch-slider:before {
 }
 
 .teacher-prior {
-    font-size: 9px;
-    font-weight: 600;
+    font-size: 13px;
+    font-weight: 700;
     color: var(--accent-prior);
-    text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+    text-shadow: 0 1px 3px rgba(0,0,0,0.95), 0 0 5px rgba(0,0,0,0.8);
 }
 
 .teacher-visits {
-    font-size: 8px;
-    font-weight: 500;
+    font-size: 12px;
+    font-weight: 600;
     color: var(--accent-visits);
-    background-color: rgba(9, 9, 9, 0.7);
-    padding: 0px 2px;
-    border-radius: 2px;
+    background-color: rgba(9, 9, 9, 0.85);
+    padding: 2px 4px;
+    border-radius: 4px;
     margin-top: 1px;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+    text-shadow: 0 1px 3px rgba(0,0,0,0.95);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.5);
 }
 
 .teacher-qval {
-    font-size: 7px;
+    font-size: 12px;
+    font-weight: 600;
     color: var(--accent-q);
-    text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+    text-shadow: 0 1px 3px rgba(0,0,0,0.95), 0 0 5px rgba(0,0,0,0.8);
 }
 
 /* Score cards HUD */

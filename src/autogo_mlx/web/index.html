@@ -64,17 +64,20 @@
                 </div>
                 
                 <div class="teacher-options" id="teacher-options-panel">
-                    <label class="checkbox-row" for="toggle-priors">
-                        <input type="checkbox" id="toggle-priors" checked>
-                        <span>Show Policy Priors (Net instinct)</span>
+                    <label class="radio-row" for="mode-priors">
+                        <input type="radio" id="mode-priors" name="teacher-mode" value="priors" checked>
+                        <span class="legend-color-dot priors"></span>
+                        <span>Policy Priors (Net instinct)</span>
                     </label>
-                    <label class="checkbox-row" for="toggle-visits">
-                        <input type="checkbox" id="toggle-visits" checked>
-                        <span>Show MCTS Search Visits</span>
+                    <label class="radio-row" for="mode-visits">
+                        <input type="radio" id="mode-visits" name="teacher-mode" value="visits">
+                        <span class="legend-color-dot visits"></span>
+                        <span>MCTS Search Visits</span>
                     </label>
-                    <label class="checkbox-row" for="toggle-q">
-                        <input type="checkbox" id="toggle-q" checked>
-                        <span>Show Win Probability (Q value)</span>
+                    <label class="radio-row" for="mode-q">
+                        <input type="radio" id="mode-q" name="teacher-mode" value="q">
+                        <span class="legend-color-dot qval"></span>
+                        <span>Win Probability (Q value)</span>
                     </label>
                 </div>
             </section>
@@ -107,6 +110,10 @@
                     <!-- Dynamic Go board container -->
                     <div id="go-board-container" class="go-board-container">
                         <!-- Grid cell blocks rendered dynamically via JS -->
+                    </div>
+                    <!-- Pass overlay notification -->
+                    <div id="pass-notification" class="pass-notification-overlay hidden">
+                        <span>BOT PASSED</span>
                     </div>
                 </div>
 
