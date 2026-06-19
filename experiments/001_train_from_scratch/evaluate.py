@@ -254,6 +254,7 @@ def main() -> None:
         flush=True,
     )
     print("==========================================================", flush=True)
+    print(f"Peak GPU Memory: {mx.get_peak_memory() / (1024**2):.1f} MB", flush=True)
 
     # If a specific minimum win rate is requested, fail-fast if not met.
     if args.min_win_rate > 0.0:

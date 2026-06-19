@@ -352,6 +352,7 @@ def main() -> None:
     print(f"  Policy Acc: {avg_acc:.2%}", flush=True)
     if args.in_channels == 18:
         print(f"  Score MAE: {avg_mae:.2f}", flush=True)
+    print(f"Peak GPU Memory: {mx.get_peak_memory() / (1024**2):.1f} MB", flush=True)
 
 
 if __name__ == "__main__":
