@@ -24,7 +24,8 @@ mkdir -p "${EXP_DIR}/checkpoints"
 mkdir -p "${EXP_DIR}/logs"
 
 print_vram() {
-    uv run python -c "import mlx.core as mx; print(f'Peak GPU Memory: {mx.get_peak_memory() / (1024**2):.1f} MB')"
+    # Peak memory is now logged directly by the python scripts at completion
+    :
 }
 
 START_TIME=$(date +%s)
