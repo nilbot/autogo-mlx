@@ -455,6 +455,13 @@ class GoDataset:
                 ownership_target = -ownership_target
             has_ownership = True
 
+        # Get root_q_values with graceful fallback
+        if "root_q_values" in data and len(data["root_q_values"]) > local:
+            # root_q_values in file is from opponent/parent perspective, so current player win prob is 1.0 - root_q
+            q_val = 1.0 - float(data["root_q_values"][local])
+        else:
+            q_val = float(winner)
+
         sample: dict[str, Any] = {
             "board": board,
             "mask": mask,
@@ -464,6 +471,7 @@ class GoDataset:
             "final_score": np.float32(margin),
             "ownership_target": ownership_target,
             "has_ownership": has_ownership,
+            "root_q_value": np.float32(q_val),
         }
 
         if self.in_channels == 8:
@@ -660,6 +668,7 @@ class GoDataset:
             final_scores_B = np.array([s["final_score"] for s in samples], dtype=np.float32)
             ownership_target_BHW = np.stack([s["ownership_target"] for s in samples])
             has_ownership_target_B = np.array([s["has_ownership"] for s in samples], dtype=np.float32)
+            root_q_value_B = np.array([s["root_q_value"] for s in samples], dtype=np.float32)
 
             if self.in_channels == 8:
                 lib_1_BHW = np.stack([s["lib_1"] for s in samples])
@@ -719,6 +728,7 @@ class GoDataset:
                 "final_score_B": final_scores_B,
                 "ownership_target_BHW": ownership_target_BHW,
                 "has_ownership_target_B": has_ownership_target_B,
+                "root_q_value_B": root_q_value_B,
             }
 
     # ---- diagnostics ------------------------------------------------------

@@ -71,6 +71,12 @@ def main() -> None:
         default=8,
         help="Number of input channels (3 for absolute, 8 for liberties+Ko, 18 for history)",
     )
+    parser.add_argument(
+        "--value-lambda",
+        type=float,
+        default=0.5,
+        help="Weight for final outcome in blended value targets (1.0 = pure outcome, 0.0 = pure search value)",
+    )
     args = parser.parse_args()
 
     mx.random.seed(args.seed)
@@ -262,13 +268,21 @@ def main() -> None:
         has_ownership = (
             mx.array(batch["has_ownership_target_B"]) if "has_ownership_target_B" in batch else None
         )
+        
+        # Blend winner and search Q-values using value_lambda
+        # winner is self-perspective outcome {0, 1}. root_q_value_B is self-perspective search Q-value [0, 1].
+        if "root_q_value_B" in batch and args.value_lambda < 1.0:
+            root_q = mx.array(batch["root_q_value_B"])
+            value_target = (1.0 - args.value_lambda) * root_q + args.value_lambda * winner
+        else:
+            value_target = winner
 
         # Execute step
         loss, pol_loss, val_loss, own_loss, accuracy, score_mae = train_step(
             board,
             mask,
             mcts_policy,
-            winner,
+            value_target,
             is_teacher,
             final_score,
             ownership_target,

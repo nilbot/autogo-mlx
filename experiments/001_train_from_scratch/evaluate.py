@@ -156,6 +156,17 @@ def main() -> None:
         default="",
         help="Path to opponent MLX model weights (.safetensors). If empty, plays against RandomAgent.",
     )
+    parser.add_argument(
+        "--d4-ensemble",
+        action="store_true",
+        help="Enable MCTS D4 symmetry ensembling during evaluation",
+    )
+    parser.add_argument(
+        "--min-win-rate",
+        type=float,
+        default=0.0,
+        help="Minimum win rate (percentage) to exit successfully; otherwise exit with code 2",
+    )
     args = parser.parse_args()
 
     checkpoint_path = Path(args.checkpoint)
@@ -182,6 +193,7 @@ def main() -> None:
             batch_size=64,
             timeout_ms=1.0,
             in_channels=opp_in_channels,
+            d4_ensemble=args.d4_ensemble,
         )
 
     print(
@@ -201,6 +213,7 @@ def main() -> None:
         batch_size=64,
         timeout_ms=1.0,
         in_channels=args.in_channels,
+        d4_ensemble=args.d4_ensemble,
     )
 
     # 2. Dispatch games to thread pool
@@ -241,6 +254,22 @@ def main() -> None:
         flush=True,
     )
     print("==========================================================", flush=True)
+
+    # If a specific minimum win rate is requested, fail-fast if not met.
+    if args.min_win_rate > 0.0:
+        if win_rate >= args.min_win_rate:
+            print(
+                f"🟢 SUCCESS: Win rate of {win_rate:.2f}% meets target of >= {args.min_win_rate}%!",
+                flush=True,
+            )
+            sys.exit(0)
+        else:
+            print(
+                f"❌ FAILURE: Win rate of {win_rate:.2f}% is below target of {args.min_win_rate}%!",
+                file=sys.stderr,
+                flush=True,
+            )
+            sys.exit(2)
 
     if win_rate >= 80.0:
         print(

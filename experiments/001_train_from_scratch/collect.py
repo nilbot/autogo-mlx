@@ -163,6 +163,11 @@ def main() -> None:
         default=0.0,
         help="Win probability threshold below which a player resigns (0.0 to disable)",
     )
+    parser.add_argument(
+        "--d4-ensemble",
+        action="store_true",
+        help="Enable MCTS D4 symmetry ensembling during evaluation",
+    )
     args = parser.parse_args()
 
     checkpoint_path = Path(args.checkpoint)
@@ -231,6 +236,7 @@ def main() -> None:
                         batch_size=64,
                         timeout_ms=1.0,
                         in_channels=past_in_channels,
+                        d4_ensemble=args.d4_ensemble,
                     )
                 else:
                     print("--> League play enabled, but no historical checkpoints found with iteration index less than current.", flush=True)
@@ -255,6 +261,7 @@ def main() -> None:
         batch_size=64,
         timeout_ms=1.0,
         in_channels=args.in_channels,
+        d4_ensemble=args.d4_ensemble,
     )
 
     try:

@@ -171,6 +171,7 @@ for ITER in $(seq "$START" "$END"); do
         --seed $((42 + ITER * 100)) \
         --in-channels "$IN_CHANNELS" \
         --progressive-sims \
+        --d4-ensemble \
         ${OPPONENT_POOL_FLAGS} \
         ${HYBRID_FLAGS} \
         ${COLLECT_RESUME_FLAG} \
@@ -255,6 +256,38 @@ for ITER in $(seq "$START" "$END"); do
         --in-channels "$IN_CHANNELS" \
         --iteration "$NEXT" || [ "$NUM_GAMES" -lt 10 ]
     echo ""
+
+    # 4. Live Evaluation Gate (Fail-Fast)
+    # Compare iter${NEXT} against iter${ITER} in a tournament.
+    # Win rate must be >= 55.0% for the loop to proceed.
+    echo "=========================================================="
+    echo "Live Evaluation Gate: Model iter${NEXT} vs Predecessor iter${ITER}"
+    echo "=========================================================="
+    t0_eval=$(date +%s)
+    
+    # We will use 40 games (20 Black, 20 White) to evaluate
+    EVAL_GATE_GAMES=40
+    # For dry-run/mock testing with small NUM_GAMES, we scale it down to 4 games
+    if [ "$NUM_GAMES" -lt 100 ]; then
+        EVAL_GATE_GAMES=4
+    fi
+    
+    # Run evaluation with D4 ensembling enabled and strict target win rate of >= 55%
+    uv run python "${EXP_DIR}/evaluate.py" \
+        --checkpoint "$NEXT_CKPT" \
+        --opponent-checkpoint "$CKPT" \
+        --num-games "$EVAL_GATE_GAMES" \
+        --n-simulations 64 \
+        --num-workers 8 \
+        --seed 1000 \
+        --in-channels "$IN_CHANNELS" \
+        --d4-ensemble \
+        --min-win-rate 55.0 \
+        2>&1 | tee "${EXP_DIR}/logs/eval_gate_iter${NEXT}.log"
+        
+    t1_eval=$(date +%s)
+    echo "--> Live Evaluation Gate completed in $((t1_eval - t0_eval)) seconds."
+    echo ""
 done
 
 # ------------------ EVALUATION PHASE ------------------
@@ -282,6 +315,7 @@ uv run python "${EXP_DIR}/evaluate.py" \
     --num-workers 8 \
     --seed 1000 \
     --in-channels "$IN_CHANNELS" \
+    --d4-ensemble \
     2>&1 | tee "${EXP_DIR}/logs/evaluation.log"
 t1=$(date +%s)
 echo "--> Evaluation took $((t1 - t0)) seconds."

@@ -25,6 +25,7 @@ experiments/*/bootstrap_sgf/
 experiments/*/bootstrap_npz/
 experiments/*/logs/
 experiments/*/selfplay/
+experiments/**/old_run*backup/
 
 # Vendor / submodule build outputs
 third_party/*/build/

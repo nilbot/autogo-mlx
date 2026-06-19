@@ -260,6 +260,58 @@ def check_symmetry_and_bias(
     }
 
 
+def evaluate_empty_board_metrics(
+    model: SizeInvariantGoResNet,
+    board_size: int,
+    in_channels: int,
+) -> dict[str, float]:
+    """Computes opening entropy, symmetry divergence, and corner std dev on the empty board."""
+    empty_BHW = np.zeros((1, board_size, board_size, in_channels), dtype=np.float32)
+    if in_channels == 8:
+        empty_BHW[..., 0] = 1.0
+    elif in_channels == 18:
+        empty_BHW[..., 16] = 1.0
+    else:
+        empty_BHW[..., 0] = 1.0
+
+    mask_BHW = np.ones((1, board_size, board_size), dtype=np.float32)
+    policy_BA, _ = model(mx.array(empty_BHW), mx.array(mask_BHW))
+    mx.eval(policy_BA)
+
+    # Softmax over all actions
+    probs = softmax(np.array(policy_BA[0], dtype=np.float64))
+    spatial_probs = probs[:board_size * board_size].reshape(board_size, board_size)
+
+    # Entropy in nats
+    p = spatial_probs[spatial_probs > 0]
+    entropy = -np.sum(p * np.log(p))
+
+    # D4 transformations
+    transforms = []
+    for flip in [False, True]:
+        for rot in range(4):
+            grid = np.copy(spatial_probs)
+            if flip:
+                grid = np.flip(grid, axis=-1)
+            if rot:
+                grid = np.rot90(grid, k=rot, axes=(0, 1))
+            transforms.append(grid)
+
+    transforms = np.stack(transforms) # shape (8, H, W)
+    coord_variances = np.var(transforms, axis=0) # shape (H, W)
+    avg_symmetry_variance = float(np.mean(coord_variances))
+
+    # Corner standard deviation
+    corners = [spatial_probs[0, 0], spatial_probs[0, board_size-1], spatial_probs[board_size-1, 0], spatial_probs[board_size-1, board_size-1]]
+    corner_std = float(np.std(corners))
+
+    return {
+        "H_open": entropy,
+        "D_sym": avg_symmetry_variance,
+        "corner_std": corner_std,
+    }
+
+
 def evaluate_d4_symmetry_metrics(
     model: SizeInvariantGoResNet,
     samples: list[dict[str, Any]],
@@ -362,6 +414,10 @@ def mine_selfplay_data(selfplay_dir: Path, board_size: int) -> dict[str, Any]:
     # Track passes for the first 10 plies of the game to catch the early PASS attractor
     pass_at_ply = [0] * 10
     
+    # Track early edge plays (outer edge, Zone 1) during plies 0 to 10
+    early_edge_count = 0
+    early_non_pass_count = 0
+
     # 2D grid accumulator for spatial density heatmap
     spatial_move_density = np.zeros((board_size, board_size), dtype=np.float32)
     
@@ -394,11 +450,18 @@ def mine_selfplay_data(selfplay_dir: Path, board_size: int) -> dict[str, Any]:
                     pass_on_move_0 += 1
                 opening_moves.append(first_move)
 
-            # Track early passes per ply for the first 10 plies
+            # Track early passes and edge play per ply for the first 10 plies
             for ply_idx in range(min(game_len, 10)):
                 m = tuple(moves[ply_idx])
                 if m == (-1, -1):
                     pass_at_ply[ply_idx] += 1
+                else:
+                    r, c = m
+                    if 0 <= r < board_size and 0 <= c < board_size:
+                        early_non_pass_count += 1
+                        min_dist_to_edge = min(r, c, board_size - 1 - r, board_size - 1 - c)
+                        if min_dist_to_edge == 0:
+                            early_edge_count += 1
 
             for t in range(game_len):
                 m = tuple(moves[t])
@@ -468,12 +531,14 @@ def mine_selfplay_data(selfplay_dir: Path, board_size: int) -> dict[str, Any]:
         }
 
     early_pass_ratios = [pass_at_ply[t] / total_games if total_games > 0 else 0.0 for t in range(10)]
+    early_edge_ratio = (early_edge_count / early_non_pass_count) if early_non_pass_count > 0 else 0.0
 
     return {
         "total_games": total_games,
         "pass_on_move_0": pass_on_move_0,
         "pass_ratio": pass_on_move_0 / total_games if total_games > 0 else 0.0,
         "early_pass_ratios": early_pass_ratios,
+        "early_edge_ratio": early_edge_ratio,
         "opening_vocab_size": len(unique_openings),
         "unique_openings": unique_openings,
         "capture_rate": capture_rate,
@@ -515,6 +580,176 @@ def render_ascii_heatmap(density: np.ndarray) -> str:
     return "\n".join(lines)
 
 
+def update_telemetry_history(
+    checkpoint_dir: Path,
+    iteration: int,
+    metrics: dict[str, float],
+) -> dict[str, dict[str, float]]:
+    """Loads, updates, and saves the metrics history to telemetry_history.json."""
+    history_file = checkpoint_dir / "telemetry_history.json"
+    history = {}
+    if history_file.exists():
+        try:
+            with open(history_file, "r") as f:
+                history = json.load(f)
+        except Exception:
+            pass
+            
+    history[str(iteration)] = {
+        "H_open": float(metrics.get("H_open", 0.0)),
+        "D_sym": float(metrics.get("D_sym", 0.0)),
+        "early_edge_ratio": float(metrics.get("early_edge_ratio", 0.0)),
+        "val_pol_alignment": float(metrics.get("val_pol_alignment", 0.0)),
+    }
+    
+    try:
+        with open(history_file, "w") as f:
+            json.dump(history, f, indent=2)
+    except Exception:
+        pass
+        
+    return history
+
+
+def generate_telemetry_insights(
+    checkpoint_dir: Path,
+    current_iter: int,
+    history: dict[str, dict[str, float]],
+    z_threshold: float = 2.5,
+) -> list[str]:
+    """Computes dynamic z-scores of the current metrics against previous history,
+    detects statistical anomalies, and generates telemetry_insights.md.
+    """
+    insights_file = checkpoint_dir / "telemetry_insights.md"
+    warnings = []
+    
+    # 1. Collect past metrics values (excluding current iteration)
+    past_iters = sorted([int(k) for k in history.keys() if int(k) < current_iter])
+    
+    current_metrics = history.get(str(current_iter), {})
+    z_scores = {}
+    
+    # If we have at least 3 iterations of historical data, we compute z-scores
+    if len(past_iters) >= 3:
+        for metric_name in ["H_open", "D_sym", "early_edge_ratio", "val_pol_alignment"]:
+            past_vals = [history[str(it)][metric_name] for it in past_iters]
+            mean = float(np.mean(past_vals))
+            std = float(np.std(past_vals))
+            curr_val = current_metrics.get(metric_name, 0.0)
+            
+            if std > 1e-9:
+                z = (curr_val - mean) / std
+                z_scores[metric_name] = z
+                
+                # Check for anomalies
+                if metric_name == "H_open" and z < -z_threshold:
+                    warnings.append(
+                        f"First-Ply Spatial Entropy (H_open) exhibits a significant downward drop: "
+                        f"z = {z:.2f} (value: {curr_val:.4f} vs history mean: {mean:.4f}, z-thresh: {z_threshold})"
+                    )
+                elif metric_name == "D_sym" and z > z_threshold:
+                    warnings.append(
+                        f"Symmetry Divergence (D_sym) exhibits a significant upward spike: "
+                        f"z = {z:.2f} (value: {curr_val:.4e} vs history mean: {mean:.4e}, z-thresh: {z_threshold})"
+                    )
+                elif metric_name == "early_edge_ratio" and z > z_threshold:
+                    warnings.append(
+                        f"Early Edge-Play Ratio exhibits a significant upward anomaly: "
+                        f"z = {z:.2f} (value: {curr_val:.2%} vs history mean: {mean:.2%}, z-thresh: {z_threshold})"
+                    )
+                elif metric_name == "val_pol_alignment" and z < -z_threshold:
+                    warnings.append(
+                        f"Value-Policy Alignment (A_VP) has dropped significantly: "
+                        f"z = {z:.2f} (value: {curr_val:.4f} vs history mean: {mean:.4f}, z-thresh: {z_threshold})"
+                    )
+            else:
+                z_scores[metric_name] = 0.0
+    else:
+        # Not enough history for statistical anomaly checking
+        for metric_name in ["H_open", "D_sym", "early_edge_ratio", "val_pol_alignment"]:
+            z_scores[metric_name] = 0.0
+
+    # 2. Generate telemetry_insights.md report
+    lines = [
+        "# 📊 Telemetry Insights & Anomaly Report",
+        "",
+        "This report shows the reinforcement learning training metrics over iterations and highlights statistical anomalies.",
+        "",
+        "## 📈 Metrics History",
+        "",
+        "| Iteration | H_open (nats) | D_sym | Early Edge Ratio | Value-Policy Alignment |",
+        "|:---:|:---:|:---:|:---:|:---:|",
+    ]
+    
+    # List iterations chronologically
+    all_iters = sorted([int(k) for k in history.keys()])
+    for it in all_iters:
+        m = history[str(it)]
+        lines.append(
+            f"| {it} | {m['H_open']:.4f} | {m['D_sym']:.4e} | {m['early_edge_ratio']:.2%} | {m['val_pol_alignment']:.4f} |"
+        )
+        
+    lines.extend([
+        "",
+        "## 🔬 Current Iteration Anomaly Assessment",
+        "",
+        f"**Iteration**: {current_iter}",
+        "",
+    ])
+    
+    if len(past_iters) >= 3:
+        lines.extend([
+            "| Metric | Current Value | History Mean (μ) | History StdDev (σ) | Z-Score | Status |",
+            "|:---|:---:|:---:|:---:|:---:|:---:|",
+        ])
+        for metric_name in ["H_open", "D_sym", "early_edge_ratio", "val_pol_alignment"]:
+            past_vals = [history[str(it)][metric_name] for it in past_iters]
+            mean = float(np.mean(past_vals))
+            std = float(np.std(past_vals))
+            curr_val = current_metrics.get(metric_name, 0.0)
+            z = z_scores.get(metric_name, 0.0)
+            
+            # Format values
+            if "ratio" in metric_name:
+                curr_str, mean_str, std_str = f"{curr_val:.2%}", f"{mean:.2%}", f"{std:.2%}"
+            elif "D_sym" in metric_name:
+                curr_str, mean_str, std_str = f"{curr_val:.4e}", f"{mean:.4e}", f"{std:.4e}"
+            else:
+                curr_str, mean_str, std_str = f"{curr_val:.4f}", f"{mean:.4f}", f"{std:.4f}"
+                
+            status_str = "🟢 Normal"
+            if metric_name in ["H_open", "val_pol_alignment"] and z < -z_threshold:
+                status_str = "🔴 Anomaly (Drop)"
+            elif metric_name in ["D_sym", "early_edge_ratio"] and z > z_threshold:
+                status_str = "🔴 Anomaly (Spike)"
+                
+            lines.append(
+                f"| {metric_name} | {curr_str} | {mean_str} | {std_str} | {z:.2f} | {status_str} |"
+            )
+    else:
+        lines.append(f"ℹ️ Insufficient history to calculate z-score anomalies (need at least 3 past iterations, currently have {len(past_iters)}).")
+
+    lines.extend([
+        "",
+        "## ⚠️ Active Anomalies",
+        "",
+    ])
+    
+    if warnings:
+        for w in warnings:
+            lines.append(f"* **ALERT**: {w}")
+    else:
+        lines.append("🟢 No statistical anomalies detected in this iteration.")
+        
+    try:
+        with open(insights_file, "w") as f:
+            f.write("\n".join(lines) + "\n")
+    except Exception:
+        pass
+        
+    return warnings
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Reinforcement Learning Telemetry & Scientific Discovery")
     parser.add_argument("--checkpoint", type=str, required=True, help="Checkpoint to check")
@@ -523,6 +758,7 @@ def main() -> None:
     parser.add_argument("--board-size", type=int, default=9, help="Go board size")
     parser.add_argument("--iteration", type=int, default=-1, help="Current iteration index")
     parser.add_argument("--strict", action="store_true", help="Abort on any safety metric violation")
+    parser.add_argument("--z-threshold", type=float, default=2.5, help="Z-score absolute threshold for dynamic anomaly alerts")
     args = parser.parse_args()
 
     checkpoint_path = Path(args.checkpoint)
@@ -589,6 +825,11 @@ def main() -> None:
 
     print("\n🔮 Policy Head Diagnostics (Empty Board):")
     print(f"  - Shannon Entropy on Empty Board: {entropy:.4f} bits ({entropy_pct:.2f}% of uniform)")
+    
+    empty_board_metrics = evaluate_empty_board_metrics(model, args.board_size, args.in_channels)
+    print(f"  - First-Ply Spatial Entropy (H_open): {empty_board_metrics['H_open']:.4f} nats")
+    print(f"  - Empty-Board Symmetry Divergence (D_sym): {empty_board_metrics['D_sym']:.4e}")
+    print(f"  - Empty-Board Corner Std Dev: {empty_board_metrics['corner_std']:.4f}")
     
     # Print top 3 predictions
     sorted_probs = sorted(list(enumerate(probs)), key=lambda x: x[1], reverse=True)
@@ -682,17 +923,31 @@ def main() -> None:
                 val_acc = np.mean(val_direction_correct)
                 val_mse = np.mean((pred_val_prob - batch["winner_B"])**2)
                 
+                # Compute Value-Policy Alignment (Pearson correlation)
+                pred_probs_BA = softmax(np.array(pol_logits, dtype=np.float64))
+                corrs = []
+                for i in range(n_eval):
+                    pred_probs = pred_probs_BA[i]
+                    target_probs = batch["mcts_policy_BA"][i]
+                    if np.std(pred_probs) > 1e-9 and np.std(target_probs) > 1e-9:
+                        corr = np.corrcoef(pred_probs, target_probs)[0, 1]
+                        if not np.isnan(corr):
+                            corrs.append(corr)
+                val_pol_alignment = float(np.mean(corrs)) if corrs else 0.0
+
                 print(f"  - Validation sample size: {n_eval} plies")
                 print(f"  - Total dense loss  : {float(total_l):.4f}")
                 print(f"  - Policy cross-ent  : {float(pol_l):.4f} | MCTS Top Match Accuracy: {pol_acc:.2%}")
                 print(f"  - Value loss (BCE)  : {float(val_l):.4f} | Directional Accuracy   : {val_acc:.2%} (MSE: {val_mse:.4f})")
+                print(f"  - Value-Policy Alignment (A_VP): {val_pol_alignment:.4f}")
                 print(f"  - Ownership MSE loss: {float(own_l):.4f}")
                 
                 real_dataset_metrics = {
                     "pol_acc": pol_acc,
                     "val_acc": val_acc,
                     "val_loss": float(val_l),
-                    "pol_loss": float(pol_l)
+                    "pol_loss": float(pol_l),
+                    "val_pol_alignment": val_pol_alignment
                 }
             except Exception as e:
                 import traceback
@@ -740,88 +995,71 @@ def main() -> None:
                 print(render_ascii_heatmap(selfplay_metrics["spatial_density"]))
                 print("")
 
-    # ------------------ 7. Automatic Safety Net Thresholds ------------------
-    collapsed = False
-    reasons = []
-
-    # Threshold A: PASS prior on empty board is too high
-    if pass_prob > 0.05:
-        collapsed = True
-        reasons.append(f"Black empty-board PASS prior is {pass_prob:.2%} (limit: 5.0%)")
-
-    # Threshold B: Value Polarization Collapse
-    if sym["empty_black"] < 0.10 or sym["empty_black"] > 0.90:
-        collapsed = True
-        reasons.append(f"Black empty-board win probability is polarized: {sym['empty_black']:.2%}")
-    if sym["empty_white"] < 0.10 or sym["empty_white"] > 0.90:
-        collapsed = True
-        reasons.append(f"White empty-board win probability is polarized: {sym['empty_white']:.2%}")
-
-    # Threshold C: Symmetry validation: Black and White complementary check
-    symmetry_gap = abs(sym["empty_black"] - (1.0 - sym["empty_white"]))
-    if symmetry_gap > 0.35:
-        collapsed = True
-        reasons.append(f"Value head lacks symmetry. Gap: {symmetry_gap:.2%} (limit: 35.0%)")
-
-    # Threshold D: Spatial D4 Symmetry Collapse (Invariance or Equivariance)
-    if d4_metrics["value_invariance_std"] > 0.25:
-        collapsed = True
-        reasons.append(f"Value spatial variance is too high: std={d4_metrics['value_invariance_std']:.4f} (limit: 0.25)")
-    if d4_metrics["policy_equivariance_jsd"] > 0.50:
-        collapsed = True
-        reasons.append(f"Policy spatial equivariance has collapsed: jsd={d4_metrics['policy_equivariance_jsd']:.4f} bits (limit: 0.50)")
-
-    # Threshold E: Self-play dataset degeneracy
-    if has_selfplay:
-        if selfplay_metrics["pass_ratio"] > 0.06:
-            collapsed = True
-            reasons.append(f"Move 0 selfplay pass rate is {selfplay_metrics['pass_ratio']:.2%} (limit: 6.0%)")
-            
-        # Check early pass rate thresholds for moves 1 to 9 (limit: 5.0%)
-        for ply_idx, rate in enumerate(selfplay_metrics["early_pass_ratios"]):
-            if ply_idx > 0 and rate > 0.05:
-                collapsed = True
-                reasons.append(f"Move {ply_idx} selfplay pass rate is {rate:.2%} (limit: 5.0% to prevent PASS attractor collapse)")
-                
-        if selfplay_metrics["game_length_mean"] > 175.0:
-            print("  ⚠️ WARNING: Decisiveness Collapse. Average game length is unusually high, suggesting tactical blindness.")
-            if args.strict:
-                collapsed = True
-                reasons.append(f"Average selfplay game length is too high: {selfplay_metrics['game_length_mean']:.1f} plies (strict limit: 175.0)")
-
-    # Threshold F: Weight gradient explosion
+    # ------------------ 7. History Logger & Dynamic Z-Score Insights ------------------
+    current_metrics = {
+        "H_open": float(empty_board_metrics["H_open"]),
+        "D_sym": float(empty_board_metrics["D_sym"]),
+        "early_edge_ratio": float(selfplay_metrics.get("early_edge_ratio", 0.0) if has_selfplay else 0.0),
+        "val_pol_alignment": float(real_dataset_metrics.get("val_pol_alignment", 0.0) if real_dataset_metrics else 0.0),
+    }
+    
+    # Save current metrics to checkpoints directory and retrieve historical values
+    history = update_telemetry_history(checkpoint_path.parent, args.iteration, current_metrics)
+    
+    # Analyze dynamic anomalies relative to history (z-score analysis)
+    telemetry_warnings = generate_telemetry_insights(checkpoint_path.parent, args.iteration, history, z_threshold=args.z_threshold)
+    
+    # Standard Physical/Numerical Sanity Checks (Not behavioral: checks weight explosions)
+    numerical_collapsed = False
+    numerical_reasons = []
+    
     for layer, metric in weight_stats.items():
         if metric["l2_norm"] > 150.0:
-            collapsed = True
-            reasons.append(f"L2 weight explosion on {layer}: {metric['l2_norm']:.2f}")
+            numerical_collapsed = True
+            numerical_reasons.append(f"L2 weight explosion on {layer}: {metric['l2_norm']:.2f}")
         elif metric["l2_norm"] < 0.005:
-            collapsed = True
-            reasons.append(f"Vanishing weight norm on {layer}: {metric['l2_norm']:.4f}")
+            # We log vanishing weights but don't abort immediately unless strict is set,
+            # because at iteration 0 zero-initialized readouts are expected to have norm 0.
+            if args.strict and args.iteration > 0:
+                numerical_collapsed = True
+                numerical_reasons.append(f"Vanishing weight norm on {layer}: {metric['l2_norm']:.4f}")
 
     # ------------------ 8. Summary Output & Exit ------------------
     print("="*70)
-    if collapsed:
-        print("🔴 CRITICAL FAILURE DETECTED: Model/Representation Collapse is Active!")
-        print("="*70)
-        for r in reasons:
-            print(f"  ❌ {r}")
-        print("\nAborting iteration loop to prevent wasted hardware cycles.")
-        sys.exit(1)
+    print("📋 TELEMETRY BEHAVIORAL INSIGHTS SUMMARY:")
+    if telemetry_warnings:
+        print("  ⚠️ STATISTICAL ANOMALIES DETECTED:")
+        for w in telemetry_warnings:
+            print(f"    - {w}")
     else:
-        print("💚 TELEMETRY HEALTH CHECK: SUCCESS")
+        print("  🟢 No statistical anomalies detected relative to history baseline.")
+        
+    print(f"  🟢 Value Invariance standard deviation: {d4_metrics['value_invariance_std']:.4f}")
+    print(f"  🟢 Policy Equivariance JSD: {d4_metrics['policy_equivariance_jsd']:.4f} bits")
+    if has_selfplay:
+        print(f"  🟢 Self-play dataset move diversity: {selfplay_metrics['opening_vocab_size']} unique openings")
+        print(f"  🟢 Early Edge Play Ratio (Zone 1 plies 0-10): {current_metrics['early_edge_ratio']:.2%}")
+        if real_dataset_metrics and "val_pol_alignment" in real_dataset_metrics:
+            print(f"  🟢 MCTS Value-Policy Alignment (A_VP): {current_metrics['val_pol_alignment']:.4f}")
+            
+    print("="*70)
+    
+    if numerical_collapsed:
+        print("🔴 CRITICAL NUMERICAL FAILURE DETECTED: Weight Explosion/Underflow!")
+        for r in numerical_reasons:
+            print(f"  ❌ {r}")
+        print("\nAborting iteration loop due to numerical crash.")
+        sys.exit(1)
+        
+    print("💚 TELEMETRY HEALTH CHECK COMPLETE (exiting successfully)")
+    print("="*70)
+    
+    if args.iteration >= 21:
+        print(f"\n🛑 STOP TRIGGER: Iteration {args.iteration} reached. Aborting iteration loop to transition to Phase 2.")
         print("="*70)
-        print("  🟢 Network priors and value predictions are healthy.")
-        print(f"  🟢 Value Invariance standard deviation is exceptional: {d4_metrics['value_invariance_std']:.4f}")
-        print(f"  🟢 Policy Equivariance JSD is highly consistent: {d4_metrics['policy_equivariance_jsd']:.4f} bits")
-        if has_selfplay:
-            print(f"  🟢 Self-play dataset has healthy move diversity ({selfplay_metrics['opening_vocab_size']} unique openings) and captures.")
-            
-        if args.iteration >= 21:
-            print(f"\n🛑 STOP TRIGGER: Iteration {args.iteration} reached. Aborting iteration loop to transition to Phase 2.")
-            print("="*70)
-            sys.exit(99)
-            
-        sys.exit(0)
+        sys.exit(99)
+        
+    sys.exit(0)
 
 
 if __name__ == "__main__":

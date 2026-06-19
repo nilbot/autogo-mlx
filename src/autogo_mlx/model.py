@@ -193,6 +193,14 @@ class SizeInvariantGoResNet(nn.Module):
             for _ in range(n_blocks)
         ]
 
+        # Phase 2 Option A: Decoupled independent ResNet blocks for the evaluation heads
+        self.value_blocks = [
+            MaskedResBlock(
+                channels, norm_cls=norm_cls, use_se=use_se, se_reduction=se_reduction
+            )
+            for _ in range(2)
+        ]
+
         self.policy_conv = nn.Conv2d(channels, 1, kernel_size=1, bias=True)
         self.pass_fc = nn.Linear(channels, 1)
         self.value_fc1 = nn.Linear(channels, value_hidden)
@@ -269,15 +277,23 @@ class SizeInvariantGoResNet(nn.Module):
         pass_logit_B1 = self.pass_fc(pooled_BC)
         policy_BA = mx.concatenate([pos_logits_BL, pass_logit_B1], axis=1)
 
-        v = nn.relu(self.value_fc1(pooled_BC))
+        # Decouple the evaluation heads from the policy representation trunk
+        x_detached = mx.stop_gradient(x)
+        x_eval = x_detached
+        for block in self.value_blocks:
+            x_eval = block(x_eval, mask_BHW1)
+
+        pooled_value_BC = (x_eval * mask_BHW1).sum(axis=(1, 2)) / spatial_B[:, None]
+
+        v = nn.relu(self.value_fc1(pooled_value_BC))
         value_B = self.value_fc2(v).squeeze(-1)
 
         if return_score:
-            s = nn.relu(self.score_fc1(pooled_BC))
+            s = nn.relu(self.score_fc1(pooled_value_BC))
             score_B = self.score_fc2(s).squeeze(-1)
             
             if return_ownership:
-                own = self.ownership_conv1(x) * mask_BHW1
+                own = self.ownership_conv1(x_eval) * mask_BHW1
                 own = nn.relu(self.ownership_bn(own, mask_BHW1))
                 own_logits_BHW = self.ownership_conv2(own).squeeze(-1)
                 # Mask out excess region to be safe
@@ -289,7 +305,7 @@ class SizeInvariantGoResNet(nn.Module):
             return policy_BA, value_B, score_B
 
         if return_ownership:
-            own = self.ownership_conv1(x) * mask_BHW1
+            own = self.ownership_conv1(x_eval) * mask_BHW1
             own = nn.relu(self.ownership_bn(own, mask_BHW1))
             own_logits_BHW = self.ownership_conv2(own).squeeze(-1)
             # Mask out excess region to be safe
