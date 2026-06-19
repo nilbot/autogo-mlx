@@ -23,10 +23,6 @@ RESUME=${RESUME:-false}
 mkdir -p "${EXP_DIR}/checkpoints"
 mkdir -p "${EXP_DIR}/logs"
 
-print_vram() {
-    # Peak memory is now logged directly by the python scripts at completion
-    :
-}
 
 START_TIME=$(date +%s)
 
@@ -45,8 +41,6 @@ if [ "$START" -eq 0 ] && [ ! -f "${EXP_DIR}/checkpoints/iter0.safetensors" ]; th
         2>&1 | tee "${EXP_DIR}/logs/bootstrap_collect.log"
     t1=$(date +%s)
     echo "--> Bootstrap game collection took $((t1 - t0)) seconds."
-    print_vram
-    echo ""
 
     echo "=========================================================="
     echo "Bootstrapping Iteration 0: Model Training from Scratch"
@@ -64,7 +58,6 @@ if [ "$START" -eq 0 ] && [ ! -f "${EXP_DIR}/checkpoints/iter0.safetensors" ]; th
         2>&1 | tee "${EXP_DIR}/logs/bootstrap_train.log"
     t1=$(date +%s)
     echo "--> Bootstrap training took $((t1 - t0)) seconds."
-    print_vram
     
     # Telemetry Sanity Check on Bootstrap Iteration 0
     echo "--> Running Telemetry Health Check on bootstrap iter0..."
@@ -181,7 +174,6 @@ for ITER in $(seq "$START" "$END"); do
         2>&1 | tee "${EXP_DIR}/logs/collect_iter${ITER}.log"
     t1=$(date +%s)
     echo "--> Game collection took $((t1 - t0)) seconds."
-    print_vram
     
     # Run resignation calibration for next iteration if we are at or past iteration 5
     if [ "$ITER" -ge 5 ]; then
@@ -232,7 +224,6 @@ for ITER in $(seq "$START" "$END"); do
         2>&1 | tee "${EXP_DIR}/logs/train_iter${NEXT}.log"
     t1=$(date +%s)
     echo "--> Training took $((t1 - t0)) seconds."
-    print_vram
     
     # Train Sibling Model for diversified league play
     SIB_CKPT="${EXP_DIR}/checkpoints/iter${NEXT}_sibling.safetensors"
@@ -247,7 +238,7 @@ for ITER in $(seq "$START" "$END"); do
         --seed $((142 + ITER * 200)) \
         --in-channels "$IN_CHANNELS" \
         2>&1 | tee "${EXP_DIR}/logs/train_sibling_iter${NEXT}.log"
-    print_vram
+
     
     # 3. Telemetry Sanity Check (Fail-Fast)
     echo "--> Running Telemetry Health Check on iter${NEXT}..."
@@ -320,7 +311,6 @@ uv run python "${EXP_DIR}/evaluate.py" \
     2>&1 | tee "${EXP_DIR}/logs/evaluation.log"
 t1=$(date +%s)
 echo "--> Evaluation took $((t1 - t0)) seconds."
-print_vram
 echo ""
 
 END_TIME=$(date +%s)
