@@ -118,3 +118,21 @@ def test_game_flow_white(client):
     assert "bot_move" in state
     assert "bot_analysis" in state
     assert state["bot_move"] is not None  # Bot should have made a move
+
+
+def test_frontend_assets(client):
+    # Verify index HTML
+    response = client.get("/")
+    assert response.status_code == 200
+    assert "Tactical Sandbox" in response.text
+
+    # Verify style.css
+    response = client.get("/web/style.css")
+    assert response.status_code == 200
+    assert ".board-wrapper" in response.text
+    assert "aspect-ratio" in response.text
+
+    # Verify app.js
+    response = client.get("/web/app.js")
+    assert response.status_code == 200
+    assert "gameState" in response.text

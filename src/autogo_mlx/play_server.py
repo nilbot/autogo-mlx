@@ -98,7 +98,8 @@ class MugoGame:
             "legal_moves": legal_coords,
             "human_color": self.human_color,
             "message": message,
-            "score": self.board.score()
+            "score": self.board.score(),
+            "last_move_was_pass": len(self.move_history) > 0 and self.move_history[-1] is None
         }
 
     def play_move(self, row: int | None, col: int | None) -> bool:
@@ -203,15 +204,12 @@ class MugoGame:
         
         # Compile coordinate-mapped move recommendations
         moves_analysis = []
-        for action, visit in visits.items():
-            if action == PASS_ACTION:
-                # Handle pass action separately or skip in cell overlays
-                continue
+        for action in legal_flat:
             row, col = self.board.row_col(action)
             moves_analysis.append({
                 "row": row,
                 "col": col,
-                "visits": visit,
+                "visits": visits.get(action, 0),
                 "prior": priors.get(action, 0.0),
                 "q_value": q_vals.get(action, 0.0)
             })
@@ -279,7 +277,15 @@ async def new_game(req: NewGameRequest) -> dict:
             game.play_move(None, None)  # Pass
             bot_played_move = None
 
-    state = game.to_state_dict("Game initialized.")
+    if human_color == 2:
+        if bot_played_move is None:
+            msg = "Game started. Bot passed."
+        else:
+            msg = f"Game started. Bot played at {bot_played_move[0]},{bot_played_move[1]}."
+    else:
+        msg = "Game initialized. Your turn."
+
+    state = game.to_state_dict(msg)
     if bot_played_move is not None or human_color == 2:
         state["bot_move"] = bot_played_move
         state["bot_analysis"] = bot_analysis
@@ -316,7 +322,14 @@ async def play_move(game_id: str, req: MoveRequest) -> dict:
         game.play_move(None, None)
         bot_played_move = None
         
-    state = game.to_state_dict("Bot played move.")
+    if game.board.is_game_over():
+        msg = f"Game over. {game.to_state_dict('')['result']}"
+    elif bot_played_move is None:
+        msg = "Bot passed."
+    else:
+        msg = "Bot played move."
+        
+    state = game.to_state_dict(msg)
     state["bot_move"] = bot_played_move
     state["bot_analysis"] = bot_analysis
     return state

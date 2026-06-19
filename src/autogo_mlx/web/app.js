@@ -2,10 +2,11 @@
 let gameState = {
     gameId: null,
     boardSize: 9,
+    size: 9,
     humanColor: 1, // 1 = BLACK, 2 = WHITE
     toPlay: 1,     // 1 = BLACK, 2 = WHITE
     isOver: false,
-    board: [],     // 2D Array
+    board: Array(9).fill(null).map(() => Array(9).fill(0)), // 2D Array initialized to empty
     lastMove: null,
     legalMoves: [],
     botAnalysis: null,
@@ -20,9 +21,6 @@ const whiteBtn = document.getElementById("color-white-btn");
 const simsSlider = document.getElementById("sims-slider");
 const simsVal = document.getElementById("sims-val");
 const teacherToggle = document.getElementById("teacher-toggle");
-const priorsToggle = document.getElementById("toggle-priors");
-const visitsToggle = document.getElementById("toggle-visits");
-const qToggle = document.getElementById("toggle-q");
 const newGameBtn = document.getElementById("new-game-btn");
 const passBtn = document.getElementById("pass-btn");
 const undoBtn = document.getElementById("undo-btn");
@@ -34,12 +32,14 @@ const evalFill = document.getElementById("eval-bar-fill");
 const evalText = document.getElementById("eval-bar-text");
 const boardContainer = document.getElementById("go-board-container");
 const teacherPanel = document.getElementById("teacher-options-panel");
+const passNotification = document.getElementById("pass-notification");
 
 // Initialize application
 document.addEventListener("DOMContentLoaded", () => {
     fetchModels();
     setupEventListeners();
     updateTeacherPanelVisibility();
+    renderBoard();
 });
 
 // Event Listeners Registration
@@ -60,9 +60,9 @@ function setupEventListeners() {
         renderBoard(); // Rerender to toggle MCTS layer
     });
     
-    priorsToggle.addEventListener("change", renderBoard);
-    visitsToggle.addEventListener("change", renderBoard);
-    qToggle.addEventListener("change", renderBoard);
+    document.querySelectorAll('input[name="teacher-mode"]').forEach(radio => {
+        radio.addEventListener("change", renderBoard);
+    });
 }
 
 function setActiveColor(color) {
@@ -243,6 +243,21 @@ function updateGameState(data) {
     gameState.legalMoves = data.legal_moves;
     gameState.isOver = data.is_over;
     
+    // Toggle pass notification overlay
+    if (data.last_move_was_pass) {
+        passNotification.classList.remove("hidden");
+        const dismissPassBanner = () => {
+            passNotification.classList.add("hidden");
+            document.removeEventListener("mousedown", dismissPassBanner);
+            document.removeEventListener("keydown", dismissPassBanner);
+        };
+        // Dismiss on any keyboard key or mouse click anywhere
+        document.addEventListener("mousedown", dismissPassBanner);
+        document.addEventListener("keydown", dismissPassBanner);
+    } else {
+        passNotification.classList.add("hidden");
+    }
+    
     if (data.bot_analysis) {
         gameState.botAnalysis = data.bot_analysis;
         updateWinProbability(data.bot_analysis.root_value);
@@ -342,13 +357,15 @@ function renderBoard() {
             } else {
                 // Empty cell: setup ghost stone for legal hover
                 const isLegal = gameState.legalMoves.some(m => m[0] === r && m[1] === c);
-                if (isLegal && !gameState.isOver && !gameState.isThinking) {
+                if (isLegal && !gameState.isOver) {
                     const ghost = document.createElement("div");
                     ghost.className = `go-stone stone-ghost ${gameState.humanColor === 1 ? "stone-black" : "stone-white"}`;
                     ghost.style.display = "none";
                     cell.appendChild(ghost);
                     
-                    cell.addEventListener("mouseenter", () => { ghost.style.display = "block"; });
+                    cell.addEventListener("mouseenter", () => {
+                        if (!gameState.isThinking) ghost.style.display = "block";
+                    });
                     cell.addEventListener("mouseleave", () => { ghost.style.display = "none"; });
                     cell.addEventListener("click", () => handleCellClick(r, c));
                 }
@@ -358,31 +375,43 @@ function renderBoard() {
             if (teacherToggle.checked && val === 0 && gameState.botAnalysis && gameState.botAnalysis.moves) {
                 const analysis = gameState.botAnalysis.moves.find(m => m.row === r && m.col === c);
                 if (analysis) {
-                    // Render heatmap styling based on search concentration
-                    if (analysis.visits > 0 && visitsToggle.checked) {
+                    const activeRadio = document.querySelector('input[name="teacher-mode"]:checked');
+                    const activeMode = activeRadio ? activeRadio.value : "priors";
+                    
+                    // Render heatmap styling based on selected teacher mode
+                    if (activeMode === "visits" && analysis.visits > 0) {
                         const ratio = analysis.visits / maxVisits;
-                        cell.style.backgroundColor = `rgba(240, 98, 51, ${ratio * 0.25})`;
+                        cell.style.backgroundColor = `rgba(240, 98, 51, ${ratio * 0.35})`;
+                        cell.classList.add("visited-heatmap");
+                    } else if (activeMode === "q" && analysis.visits > 0) {
+                        // Normalize Q-value (-1..1 to 0..1) for emerald green heatmap
+                        const qValNormalized = (analysis.q_value + 1.0) / 2.0;
+                        cell.style.backgroundColor = `rgba(52, 199, 89, ${qValNormalized * 0.3})`;
+                        cell.classList.add("visited-heatmap");
+                    } else if (activeMode === "priors" && analysis.prior > 0.01) {
+                        // Cool Blue heatmap for priors
+                        cell.style.backgroundColor = `rgba(0, 122, 255, ${analysis.prior * 0.3})`;
                         cell.classList.add("visited-heatmap");
                     }
                     
                     const overlay = document.createElement("div");
                     overlay.className = "teacher-overlay";
                     
-                    if (priorsToggle.checked && analysis.prior > 0.005) {
+                    if (activeMode === "priors" && analysis.prior > 0.005) {
                         const p = document.createElement("span");
                         p.className = "teacher-prior";
                         p.textContent = `${(analysis.prior * 100).toFixed(0)}%`;
                         overlay.appendChild(p);
                     }
                     
-                    if (visitsToggle.checked && analysis.visits > 0) {
+                    if (activeMode === "visits" && analysis.visits > 0) {
                         const v = document.createElement("span");
                         v.className = "teacher-visits";
                         v.textContent = analysis.visits;
                         overlay.appendChild(v);
                     }
                     
-                    if (qToggle.checked && analysis.visits > 0) {
+                    if (activeMode === "q" && analysis.visits > 0) {
                         const q = document.createElement("span");
                         q.className = "teacher-qval";
                         q.textContent = analysis.q_value.toFixed(2);
