@@ -16,7 +16,7 @@ For each iteration $N$ of training, the agent acts as the research supervisor an
 ### A. Extract & Inspect Telemetry Metrics
 Run Python inspection scripts on the newly generated self-play games (`experiments/001_train_from_scratch/selfplay/iter{N}/`) and output logs to extract:
 1. **Empty-Board Prior Diagnostics**:
-   * **Shannon Entropy ($H$)**: Should be close to uniform ($\approx 6.35$ bits for $9 \times 9$, representing $\log_2(82)$). A sharp drop indicates early coordinate bias.
+   * **Shannon Entropy ($H$)**: Should start near uniform ($\approx 6.35$ bits) in iterations 0–2. It will naturally contract (e.g., to $3.0\text{--}4.5$ bits) in later iterations as the model focuses on a pool of viable opening moves (Tengen, star points). A premature, sudden drop to near-zero ($< 2.0$ bits) indicates representation collapse or coordinate overfitting.
    * **Symmetry Divergence ($D_{\text{sym}}$)**: Standard JSD over the 8 dihedral reflections on an empty board. Must be $< 10^{-4}$ bits.
    * **Star-point / Corner Bias**: Check if the top 3 opening moves align with strategic expectations (e.g. Star points or corners, avoiding direct 1st-line opening moves).
 2. **Color Bias**:
