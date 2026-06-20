@@ -165,7 +165,6 @@ for ITER in $(seq "$START" "$END"); do
         --seed $((42 + ITER * 100)) \
         --in-channels "$IN_CHANNELS" \
         --progressive-sims \
-        --d4-ensemble \
         ${OPPONENT_POOL_FLAGS} \
         ${HYBRID_FLAGS} \
         ${COLLECT_RESUME_FLAG} \
