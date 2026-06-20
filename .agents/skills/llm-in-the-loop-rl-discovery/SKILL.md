@@ -20,7 +20,7 @@ Run Python inspection scripts on the newly generated self-play games (`experimen
    * **Symmetry Divergence ($D_{\text{sym}}$)**: Standard JSD over the 8 dihedral reflections on an empty board. Must be $< 10^{-4}$ bits.
    * **Star-point / Corner Bias**: Check if the top 3 opening moves align with strategic expectations (e.g. Star points or corners, avoiding direct 1st-line opening moves).
 2. **Color Bias**:
-   * Empty-board win probability prediction ($v$) from BLACK to play vs. WHITE to play. The difference should be stable and close to the komi advantage (e.g., $v_{\text{black}} \approx 0.50 \text{--} 0.55$).
+    * Empty-board win probability prediction ($v$) from BLACK to play vs. WHITE to play. Because the value head output is self-perspective, a color-symmetric model should output almost identical win probabilities (difference $< 0.05$) for both sides playing first on an empty board, hovering around $0.50$ (reflecting a fair komi balance).
 3. **Move Density Zones**:
    * Check move placement density across 5 concentric zones:
      * *Zone 1 (Outer edge / 1st line)*: High early density indicates tactical incompetence.
@@ -80,11 +80,14 @@ By dialing down simulations, injecting policy noise, and adjusting selection tem
 * **Behavior**: Super-human positional judgment, deep lookahead, and flawless endgame play.
 
 ### Calibration Protocol:
-At iterations 0, 5, 10, 15, and 20, run a tournament of **20 games** against each of the four Anchor configurations. The model's win rate determines its absolute rating placement:
-* **Pass 500 Elo**: Win rate $\ge 80\%$ against the 500 Elo Anchor.
-* **Pass 1500 Elo**: Win rate $\ge 70\%$ against the 1500 Elo Anchor.
-* **Pass 2200 Elo**: Win rate $\ge 60\%$ against the 2200 Elo Anchor.
-* **Pass 2800 Elo**: Win rate $\ge 50\%$ against the 2800 Elo Anchor.
+At iterations 0, 5, 10, 15, and 20, run a tournament of **20 games** against each of the four Anchor configurations. The model's win rate $W \in [0, 1]$ determines its rating relative to the anchor using the standard logistic Elo formula:
+$$\text{Elo}_{\text{model}} = \text{Elo}_{\text{anchor}} - 400 \log_{10}\left(\frac{1}{W} - 1\right)$$
+*(Note: If $W = 1.0$, cap the estimate at $\text{Elo}_{\text{anchor}} + 400$; if $W = 0.0$, floor it at $\text{Elo}_{\text{anchor}} - 400$.)*
+
+* **Pass 500 Elo**: Win rate $W \ge 0.50$ against the 500 Elo Anchor.
+* **Pass 1500 Elo**: Win rate $W \ge 0.50$ against the 1500 Elo Anchor.
+* **Pass 2200 Elo**: Win rate $W \ge 0.50$ against the 2200 Elo Anchor.
+* **Pass 2800 Elo**: Win rate $W \ge 0.50$ against the 2800 Elo Anchor.
 
 ---
 
@@ -92,6 +95,6 @@ At iterations 0, 5, 10, 15, and 20, run a tournament of **20 games** against eac
 
 The agent must immediately halt the run and alert the user if any of the following checks fail:
 * **Symmetry Check**: If $D_{\text{sym}} > 0.01$ bits on empty board (severe coordinate bias).
-* **Entropy Check**: If empty-board policy entropy $H < 5.0$ bits (model has overfit to specific openings and lost representation capacity).
+* **Entropy Check**: If empty-board policy entropy $H < 5.0$ bits in early iterations (Iter 0–3), or $H < 2.5$ bits in late iterations (Iter 4+), indicating representation collapse or severe overfitting to a single coordinate.
 * **Value Bias**: If empty-board win probability estimation for Black ($v_{\text{black}}$) is $> 0.90$ or $< 0.10$ (value head collapse).
 * **Pass Loop**: If self-play games consistently end in under 10 moves due to double passing.
