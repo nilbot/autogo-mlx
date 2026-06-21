@@ -98,3 +98,21 @@ The agent must immediately halt the run and alert the user if any of the followi
 * **Entropy Check**: If empty-board policy entropy $H < 5.0$ bits in early iterations (Iter 0–3), or $H < 2.5$ bits in late iterations (Iter 4+), indicating representation collapse or severe overfitting to a single coordinate.
 * **Value Bias**: If empty-board win probability estimation for Black ($v_{\text{black}}$) is $> 0.90$ or $< 0.10$ (value head collapse).
 * **Pass Loop**: If self-play games consistently end in under 10 moves due to double passing.
+
+---
+
+## 4. Replay Buffer & Training Epoch Scaling
+
+To prevent under-training and model regression when the self-play dataset expands, we must dynamically adjust training step counts.
+
+### The Problem:
+Our sliding window replay buffer aggregates games from the current iteration and the past two iterations. Because game length increases as model strategy matures, the total position count scales non-linearly:
+* **Iteration 1**: 2 iterations of games (124k positions). With static 2,000 steps, epoch coverage is $\approx 1.03$.
+* **Iteration 2**: 3 iterations of games (467k positions). With static 2,000 steps, epoch coverage drops to $\approx 0.27$, causing the model to fail the decision gate ($\approx 40\%$ win rate).
+
+### The Solution:
+Enforce a minimum epoch coverage target ($\ge 0.55$) by dynamically scaling the training steps count in `train.py` using the formula:
+$$\text{Steps} = \max\left(\text{MinSteps}, \left\lceil \text{TargetEpochs} \times \frac{N_{\text{positions}}}{B_{\text{batch\_size}}} \right\rceil\right)$$
+
+This guarantees that the model receives sufficient training exposure invariant to replay buffer density and game lengths.
+

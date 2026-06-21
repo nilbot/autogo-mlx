@@ -64,6 +64,12 @@ def main() -> None:
     parser.add_argument(
         "--steps", type=int, default=2000, help="Number of training steps"
     )
+    parser.add_argument(
+        "--min-epochs",
+        type=float,
+        default=None,
+        help="Minimum number of epochs to train. If dataset size makes --steps fall below this epoch count, steps will be scaled up dynamically.",
+    )
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument(
         "--in-channels",
@@ -102,6 +108,18 @@ def main() -> None:
             file=sys.stderr,
         )
         sys.exit(1)
+
+    # Dynamic step scaling based on min-epochs
+    if args.min_epochs is not None:
+        calculated_steps = int(np.ceil(args.min_epochs * len(dataset) / args.batch_size))
+        if calculated_steps > args.steps:
+            print(
+                f"Dynamic Step Scaling: Specified steps ({args.steps}) yields "
+                f"{args.steps * args.batch_size / len(dataset):.3f} epochs. "
+                f"Scaling steps up to {calculated_steps} to satisfy min-epochs={args.min_epochs}.",
+                flush=True,
+            )
+            args.steps = calculated_steps
 
     # Initialize model
     model = SizeInvariantGoResNet(

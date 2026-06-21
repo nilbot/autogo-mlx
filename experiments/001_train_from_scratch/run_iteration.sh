@@ -16,6 +16,7 @@ IN_CHANNELS=${3:-8}
 NUM_GAMES=${NUM_GAMES:-10000}
 N_SIMULATIONS=${N_SIMULATIONS:-128}
 TRAIN_STEPS=${TRAIN_STEPS:-2000}
+MIN_EPOCHS=${MIN_EPOCHS:-0.55}
 NUM_HIGH_SIMS_GAMES=${NUM_HIGH_SIMS_GAMES:-}
 LOW_SIMULATIONS=${LOW_SIMULATIONS:-16}
 RESUME=${RESUME:-false}
@@ -51,6 +52,7 @@ if [ "$START" -eq 0 ] && [ ! -f "${EXP_DIR}/checkpoints/iter0.safetensors" ]; th
         --resume-from "" \
         --save-checkpoint "${EXP_DIR}/checkpoints/iter0.safetensors" \
         --steps "$TRAIN_STEPS" \
+        --min-epochs "${MIN_EPOCHS}" \
         --lr 1e-3 \
         --batch-size 64 \
         --seed 42 \
@@ -216,6 +218,7 @@ for ITER in $(seq "$START" "$END"); do
         --resume-from "$CKPT" \
         --save-checkpoint "$NEXT_CKPT" \
         --steps "$TRAIN_STEPS" \
+        --min-epochs "${MIN_EPOCHS}" \
         --lr 1e-3 \
         --batch-size 64 \
         --seed $((42 + ITER * 200)) \
@@ -232,6 +235,7 @@ for ITER in $(seq "$START" "$END"); do
         --resume-from "$CKPT" \
         --save-checkpoint "$SIB_CKPT" \
         --steps "$TRAIN_STEPS" \
+        --min-epochs "${MIN_EPOCHS}" \
         --lr 2e-3 \
         --batch-size 64 \
         --seed $((142 + ITER * 200)) \
