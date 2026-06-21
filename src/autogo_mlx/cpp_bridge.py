@@ -10,7 +10,7 @@ CPP_BUILD_DIR = (
 )
 
 if str(CPP_BUILD_DIR) not in sys.path:
-    sys.path.append(str(CPP_BUILD_DIR))
+    sys.path.insert(0, str(CPP_BUILD_DIR))
 
 # Lazy or immediate load at import time
 try:
