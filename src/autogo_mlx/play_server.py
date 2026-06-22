@@ -270,7 +270,7 @@ async def new_game(req: NewGameRequest) -> dict:
         bot_analysis = game.run_mcts_analysis()
         # Choose action with highest MCTS visit count
         if bot_analysis["moves"]:
-            best_move = max(bot_analysis["moves"], key=lambda m: m["visits"])
+            best_move = max(bot_analysis["moves"], key=lambda m: (m["visits"], m["prior"]))
             game.play_move(best_move["row"], best_move["col"])
             bot_played_move = (best_move["row"], best_move["col"])
         else:
@@ -314,8 +314,8 @@ async def play_move(game_id: str, req: MoveRequest) -> dict:
     bot_analysis = game.run_mcts_analysis()
     bot_played_move = None
     if bot_analysis["moves"]:
-        # Find move with highest search visits
-        best_move = max(bot_analysis["moves"], key=lambda m: m["visits"])
+        # Find move with highest search visits, breaking ties using policy prior
+        best_move = max(bot_analysis["moves"], key=lambda m: (m["visits"], m["prior"]))
         game.play_move(best_move["row"], best_move["col"])
         bot_played_move = (best_move["row"], best_move["col"])
     else:
