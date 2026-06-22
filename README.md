@@ -75,7 +75,8 @@ cd experiments/001_train_from_scratch
 ## 🛠️ Repository Structure
 
 *   `src/autogo_mlx/` - Core Python package implementing the MLX models, loss, custom dataset, and game execution.
-*   `scripts/` - Utilities for C++ compiling, supervised SGF pre-training, parity verification, and report tracking.
+*   `scripts/` - Production-level automation, utility, and build scripts (e.g., C++ compilation, telemetry checks, evolution report compilers).
+*   `scratch/` - Temporary ad-hoc debug files, exploratory scripts, and local diagnostic sandboxes.
 *   `tests/` - Robust test suite validating every critical compute boundary.
 *   `experiments/` - Configs, scripts, and logs tracking active training runs.
 *   `third_party/autogo/` - Read-only git submodule of upstream PyTorch code with customized local patching for macOS systems.
