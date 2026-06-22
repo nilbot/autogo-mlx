@@ -6,7 +6,7 @@ This report summarizes the reinforcement learning progress of training `SizeInva
 
 - **Overall Status**: 🟢 Completed
 - **Estimated Remaining Time**: 0m (Finished)
-- **Total Elapsed Execution Time**: 10.20 hours (active)
+- **Total Elapsed Execution Time**: 11.06 hours (active)
 
 ## Stage-by-Stage Progress Table
 
@@ -28,7 +28,9 @@ This report summarizes the reinforcement learning progress of training `SizeInva
 | Iter 6 Training | 🟢 **Completed** | `██████████` 100% | Step 5466/5466 | 1666.1s | Loss=23.6618, Acc=32.02% |
 | Iter 6 Self-Play | 🟢 **Completed** | `██████████` 100% | 1500/1500 games | 6373.7s |  |
 | Iter 7 Training | 🟢 **Completed** | `██████████` 100% | Step 5231/5231 | 1592.1s | Loss=22.9716, Acc=32.25% |
-| Final Evaluation | 🟢 **Completed** | `██████████` 100% | 63 wins / 37 losses | — | Win Rate=63.0% |
+| Iter 7 Self-Play | 🟢 **Completed** | `██████████` 100% | 1500/1500 games | — |  |
+| Iter 8 Training | 🟢 **Completed** | `██████████` 100% | Step 9945/9945 | 3094.0s | Loss=19.2796, Acc=33.03% |
+| Final Evaluation | 🟢 **Completed** | `██████████` 100% | 69 wins / 31 losses | — | Win Rate=69.0% |
 
 ## Summary & Key Metrics
 
@@ -36,11 +38,11 @@ This report summarizes the reinforcement learning progress of training `SizeInva
 
 The multi-iteration reinforcement learning training run has completed successfully!
 
-- **Final Evaluation Model**: `iter7.safetensors vs Opponent (iter6.safetensors`
-- **Evaluation Opponent**: `Opponent (iter6.safetensors)`
+- **Final Evaluation Model**: `iter8.safetensors vs Opponent (iter7.safetensors`
+- **Evaluation Opponent**: `Opponent (iter7.safetensors)`
 - **Balanced Match Details**: 100 games (50 Black, 50 White), search noise disabled.
-- **Match Score**: Model **63** wins, Opponent (iter6.safetensors) **37** wins.
-- **Final Evaluation Win Rate**: **63.0%** (Target: $\ge 80\%$)
+- **Match Score**: Model **69** wins, Opponent (iter7.safetensors) **31** wins.
+- **Final Evaluation Win Rate**: **69.0%** (Target: $\ge 80\%$)
 - **Outcome Status**: **INSUFFICIENT_WINRATE**
 
 ### Training Convergence Details
@@ -53,3 +55,4 @@ The multi-iteration reinforcement learning training run has completed successful
 - **Iteration 5**: Policy Accuracy = 27.64%, Loss = 22.1974
 - **Iteration 6**: Policy Accuracy = 32.02%, Loss = 23.6618
 - **Iteration 7**: Policy Accuracy = 32.25%, Loss = 22.9716
+- **Iteration 8**: Policy Accuracy = 33.03%, Loss = 19.2796
