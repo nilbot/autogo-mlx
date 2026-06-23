@@ -12,12 +12,12 @@ START=${1:?Usage: run_iteration.sh <start_iter> <end_iter> [in_channels]}
 END=${2:?Usage: run_iteration.sh <start_iter> <end_iter> [in_channels]}
 IN_CHANNELS=${3:-8}
 
-# Configurable parameters for Attempt 8 scaling
-NUM_GAMES=${NUM_GAMES:-10000}
+# Configurable parameters capped for 2-hour iteration runtime limit
+NUM_GAMES=${NUM_GAMES:-1000}
 N_SIMULATIONS=${N_SIMULATIONS:-128}
 TRAIN_STEPS=${TRAIN_STEPS:-2000}
-MIN_EPOCHS=${MIN_EPOCHS:-0.55}
-NUM_HIGH_SIMS_GAMES=${NUM_HIGH_SIMS_GAMES:-}
+MIN_EPOCHS=${MIN_EPOCHS:-1.10}
+NUM_HIGH_SIMS_GAMES=${NUM_HIGH_SIMS_GAMES:-100}
 LOW_SIMULATIONS=${LOW_SIMULATIONS:-16}
 RESUME=${RESUME:-false}
 
