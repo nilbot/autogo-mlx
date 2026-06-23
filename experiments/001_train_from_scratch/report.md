@@ -186,7 +186,7 @@ This report documents the design, chronology, and convergence metrics of our rei
 | Iter 8 Training | 🟢 **Completed** | `██████████` 100% | Step 9945/9945 | 3094.0s | Loss=19.2796, Acc=33.03% |
 | Iter 8 Self-Play | 🟢 **Completed** | `██████████` 100% | 1500/1500 games | 5896.1s |  |
 | Iter 9 Training | 🟢 **Completed** | `██████████` 100% | Step 9039/9039 | 3027.2s | Loss=15.3694, Acc=35.09% |
-| Final Evaluation | 🟢 **Completed** | `██████████` 100% | 69 wins / 31 losses | — | Win Rate=69.0% |
+| Final Evaluation | 🟢 **Completed** | `██████████` 100% | 68 wins / 32 losses | — | Win Rate=68.0% |
 
 ## Summary & Key Metrics
 
@@ -194,11 +194,11 @@ This report documents the design, chronology, and convergence metrics of our rei
 
 The multi-iteration reinforcement learning training run has completed successfully!
 
-- **Final Evaluation Model**: `iter8.safetensors vs Opponent (iter7.safetensors`
-- **Evaluation Opponent**: `Opponent (iter7.safetensors)`
+- **Final Evaluation Model**: `iter9.safetensors vs Opponent (iter8.safetensors`
+- **Evaluation Opponent**: `Opponent (iter8.safetensors)`
 - **Balanced Match Details**: 100 games (50 Black, 50 White), search noise disabled.
-- **Match Score**: Model **69** wins, Opponent (iter7.safetensors) **31** wins.
-- **Final Evaluation Win Rate**: **69.0%** (Target: $\ge 80\%$)
+- **Match Score**: Model **68** wins, Opponent (iter8.safetensors) **32** wins.
+- **Final Evaluation Win Rate**: **68.0%** (Target: $\ge 80\%$)
 - **Outcome Status**: **INSUFFICIENT_WINRATE**
 
 ### Training Convergence Details
