@@ -45,10 +45,17 @@ Evaluate the Live Evaluation Gate tournament win rate of model $N+1$ vs. $N$:
 
 ---
 
-## 2. Elo-Bracket Calibration Strategy
+## 2. Elo-Bracket Calibration Strategy (Milestones)
 
-To measure the absolute strength of the model against the target Elo brackets (500, 1500, 2200, 2800+) without requiring expensive server leagues, we construct **Calibrated Anchor Bots** from a single strong base checkpoint (e.g., a fully-trained KataGo 9x9 checkpoint or the final Iteration 20 model).
+> [!NOTE]
+> **Active Evaluation Gate vs. Calibration**: During standard RL training iterations, we do NOT run in-flight evaluation matches against simulated anchor bots. Instead, we only run the Live Evaluation Gate comparing candidate checkpoint \(N+1\) vs. predecessor \(N\). The anchor calibration tournaments are reserved for major milestones (Iterations 0, 5, 10, 15, and 20).
 
+### Transition to Human SFT Anchors (Phase 3):
+Originally, anchor bots were programmatically simulated from a strong model by scaling down MCTS simulations, injecting policy noise, and adjusting selection temperature (as described below). 
+Once Phase 3 is reached, these heuristic "lobotomized" anchors will be replaced by **real-world human SFT anchors** trained directly on human-ranked Go games (500 Elo, 1500 Elo, 2200 Elo, and 2800+ Elo). This section will then be updated to use those SFT checkpoints for calibration matches.
+
+### Heuristic Anchor Configurations (Legacy/Pre-SFT):
+To measure the absolute strength of the model against the target Elo brackets (500, 1500, 2200, 2800+) without requiring SFT anchors, we construct **Calibrated Anchor Bots** from a single strong base checkpoint (e.g., a fully-trained KataGo 9x9 checkpoint or the final Iteration 20 model).
 By dialing down simulations, injecting policy noise, and adjusting selection temperature, we programmatically construct anchors for the four key brackets:
 
 ### 1. 500 Elo Anchor (Beginner / KYU 20)
