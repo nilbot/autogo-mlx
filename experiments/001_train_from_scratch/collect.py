@@ -391,7 +391,6 @@ def main() -> None:
         f"\nCollection completed in {duration:.1f} seconds ({duration / args.num_games:.3f}s/game average).",
         flush=True,
     )
-    import mlx.core as mx
     print(f"Peak GPU Memory: {mx.get_peak_memory() / (1024**2):.1f} MB", flush=True)
 
 
