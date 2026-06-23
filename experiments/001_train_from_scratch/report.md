@@ -160,7 +160,7 @@ This report documents the design, chronology, and convergence metrics of our rei
 
 - **Overall Status**: 🟢 Completed
 - **Estimated Remaining Time**: 0m (Finished)
-- **Total Elapsed Execution Time**: 17.48 hours (active)
+- **Total Elapsed Execution Time**: 19.95 hours (active)
 
 ## Stage-by-Stage Progress Table
 
@@ -190,6 +190,8 @@ This report documents the design, chronology, and convergence metrics of our rei
 | Iter 10 Training | 🟢 **Completed** | `██████████` 100% | Step 7519/7519 | 2336.9s | Loss=12.5665, Acc=36.81% |
 | Iter 10 Self-Play | 🟢 **Completed** | `██████████` 100% | 1000/1000 games | 5113.5s |  |
 | Iter 11 Training | 🟢 **Completed** | `██████████` 100% | Step 6317/6317 | 1924.1s | Loss=10.1417, Acc=39.86% |
+| Iter 11 Self-Play | 🟢 **Completed** | `██████████` 100% | 1000/1000 games | 6967.9s |  |
+| Iter 12 Training | 🟢 **Completed** | `██████████` 100% | Step 5650/5650 | 1940.6s | Loss=10.9788, Acc=53.63% |
 | Final Evaluation | 🟢 **Completed** | `██████████` 100% | 68 wins / 32 losses | — | Win Rate=68.0% |
 
 ## Summary & Key Metrics
@@ -219,3 +221,4 @@ The multi-iteration reinforcement learning training run has completed successful
 - **Iteration 9**: Policy Accuracy = 35.09%, Loss = 15.3694
 - **Iteration 10**: Policy Accuracy = 36.81%, Loss = 12.5665
 - **Iteration 11**: Policy Accuracy = 39.86%, Loss = 10.1417
+- **Iteration 12**: Policy Accuracy = 53.63%, Loss = 10.9788
