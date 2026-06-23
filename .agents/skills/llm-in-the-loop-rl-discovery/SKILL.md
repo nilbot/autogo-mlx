@@ -116,3 +116,17 @@ $$\text{Steps} = \max\left(\text{MinSteps}, \left\lceil \text{TargetEpochs} \tim
 ### Agent Action:
 During telemetry check and report collection, the agent must inspect the training logs (`logs/train_iter{NEXT}.log` and `logs/train_sibling_iter{NEXT}.log`) to verify that the dynamic step scaling activated and that the run successfully executed with the scaled step count.
 
+---
+
+## 5. Execution Monitoring & Time Budget Gating (2-Hour Cap)
+
+### A. No In-Flight Ad-Hoc Timers
+* **Policy**: Stop using ad-hoc timers (e.g., checking progress every 10–30 minutes) or recurring cron schedules to monitor or check progress while the training iteration is running. Instead, wait for the iteration to finish completely, and then analyze the whole iteration details for insights at the end.
+* **Action**: Launch the iteration command asynchronously in the background. Stop calling tools and let the conversation go idle. The system will automatically wake the agent up with a notification once the background process completes. Perform all detailed diagnostics, telemetry analysis, and scientific report updates at the end of the iteration.
+
+### B. Hyperparameter Time Budgeting (2-Hour Limit)
+* **Policy**: Before launching any iteration, the agent must examine the RL training script hyperparameters to estimate the running time. Ensure the total duration of a single iteration (Self-Play + Sibling/Main Training + Evaluation Gate) would not greatly exceed 2 hours.
+* **Pathology Resolution**:
+  * If the projected duration exceeds 2 hours, find out the root cause and analyze whether our design has flaws:
+    * **Non-Fundamental Flaws**: If the flaw is non-fundamental (e.g., over-conservative hyperparameters such as game counts, steps, or simulations), the agent should autonomously adjust the hyperparameters (e.g., scale down games, steps) to bring the estimated runtime within the 2-hour cap.
+    * **Fundamental Flaws**: If the flaw is fundamental (e.g., core MCTS evaluation bottlenecks or architectural inefficiencies), the agent must think through the root cause and solution, propose the change, and halt to wait for human confirmation before proceeding.

@@ -296,25 +296,29 @@ if [ -f "$START_CKPT" ]; then
     OPPONENT_NAME="iter${START}.safetensors (starting baseline)"
 fi
 
-echo "=========================================================="
-echo "Final Evaluation: Model ${FINAL_CKPT} vs ${OPPONENT_NAME}"
-echo "=========================================================="
-t0=$(date +%s)
-# Use 10 games for evaluation if NUM_GAMES is small (e.g. in dry-run)
-EVAL_GAMES=$(( NUM_GAMES < 100 ? 10 : 100 ))
-uv run python "${EXP_DIR}/evaluate.py" \
-    --checkpoint "$FINAL_CKPT" \
-    ${OPPONENT_FLAGS} \
-    --num-games "$EVAL_GAMES" \
-    --n-simulations "${N_SIMULATIONS}" \
-    --num-workers 8 \
-    --seed 1000 \
-    --in-channels "$IN_CHANNELS" \
-    --d4-ensemble \
-    2>&1 | tee "${EXP_DIR}/logs/evaluation.log"
-t1=$(date +%s)
-echo "--> Evaluation took $((t1 - t0)) seconds."
-echo ""
+if [ "$START" -eq "$END" ]; then
+    echo "--> Skipping Final Evaluation phase for single-iteration run."
+else
+    echo "=========================================================="
+    echo "Final Evaluation: Model ${FINAL_CKPT} vs ${OPPONENT_NAME}"
+    echo "=========================================================="
+    t0=$(date +%s)
+    # Use 10 games for evaluation if NUM_GAMES is small (e.g. in dry-run)
+    EVAL_GAMES=$(( NUM_GAMES < 100 ? 10 : 100 ))
+    uv run python "${EXP_DIR}/evaluate.py" \
+        --checkpoint "$FINAL_CKPT" \
+        ${OPPONENT_FLAGS} \
+        --num-games "$EVAL_GAMES" \
+        --n-simulations "${N_SIMULATIONS}" \
+        --num-workers 8 \
+        --seed 1000 \
+        --in-channels "$IN_CHANNELS" \
+        --d4-ensemble \
+        2>&1 | tee "${EXP_DIR}/logs/evaluation.log"
+    t1=$(date +%s)
+    echo "--> Evaluation took $((t1 - t0)) seconds."
+    echo ""
+fi
 
 END_TIME=$(date +%s)
 TOTAL_ELAPSED=$((END_TIME - START_TIME))
