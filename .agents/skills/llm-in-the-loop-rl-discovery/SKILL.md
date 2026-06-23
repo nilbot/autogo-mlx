@@ -125,8 +125,12 @@ During telemetry check and report collection, the agent must inspect the trainin
 * **Action**: Launch the iteration command asynchronously in the background. Stop calling tools and let the conversation go idle. The system will automatically wake the agent up with a notification once the background process completes. Perform all detailed diagnostics, telemetry analysis, and scientific report updates at the end of the iteration.
 
 ### B. Hyperparameter Time Budgeting (2-Hour Limit)
-* **Policy**: Before launching any iteration, the agent must examine the RL training script hyperparameters to estimate the running time. Ensure the total duration of a single iteration (Self-Play + Sibling/Main Training + Evaluation Gate) would not greatly exceed 2 hours.
+* **Policy**: Before launching any iteration, the agent must examine the RL training script hyperparameters to estimate the running time. The total duration of a single iteration (Self-Play + Sibling/Main Training + Evaluation Gate) must not greatly exceed 2 hours.
+* **Cost Bottleneck Analysis**:
+  * **Self-Play Simulations**: Standard MCTS simulations (e.g., 128 simulations) are highly critical for quality/strength. **Reducing simulations below standard levels is a major trade-off** that can be detrimental to the training goal.
+  * **Live Evaluation (D4 Symmetries)**: Live evaluation is extremely costly because it activates D4 symmetry ensembling, which processes 8 dihedral reflections per board position. This multiplies model evaluation overhead and must be carefully factored into the time budget.
+  * **Training Cost**: Model training (main + sibling) is comparatively cheap.
 * **Pathology Resolution**:
   * If the projected duration exceeds 2 hours, find out the root cause and analyze whether our design has flaws:
-    * **Non-Fundamental Flaws**: If the flaw is non-fundamental (e.g., over-conservative hyperparameters such as game counts, steps, or simulations), the agent should autonomously adjust the hyperparameters (e.g., scale down games, steps) to bring the estimated runtime within the 2-hour cap.
-    * **Fundamental Flaws**: If the flaw is fundamental (e.g., core MCTS evaluation bottlenecks or architectural inefficiencies), the agent must think through the root cause and solution, propose the change, and halt to wait for human confirmation before proceeding.
+    * **Non-Fundamental Flaws**: If the issue can be resolved by adjusting simple non-critical parameters (e.g., reducing the total game count `NUM_GAMES` from 10,000 to 1,000, or scaling down steps), the agent should autonomously adjust them.
+    * **Fundamental Flaws & Crucial Trade-offs**: If the 2-hour limit cannot be kept without cutting critical simulations or compromising learning quality, this represents a fundamental design flaw or structural bottleneck. In this case, the agent must *not* cut simulations autonomously; instead, it must think through the root cause, write a detailed proposal, and halt to wait for human confirmation.
