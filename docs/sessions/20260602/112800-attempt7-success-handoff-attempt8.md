@@ -14,8 +14,8 @@ Diagnose why mature checkpoints in Attempt 6 lost 100% of their games against ra
 
 ### Key Achievements
 1. **PASS Attractor Collapse Diagnosed**: Found that low-simulation MCTS noise in Iteration 5 caused White to choose `PASS` when behind. The model trained on these games, creating a positive feedback loop where White passed 100% of the time on Move 1, leaving the board out-of-distribution (OOD) for subsequent plies.
-2. **Move 60 Legal Pass Gate**: Modified the batched evaluator callbacks in both [gameplay.py](file:///Users/nilbot/playground/autogo-mlx/src/autogo_mlx/gameplay.py) and [nn_mcts.py](file:///Users/nilbot/playground/autogo-mlx/src/autogo_mlx/agents/nn_mcts.py) to legally block the `PASS` action under move 60.
-3. **Multi-Ply Telemetry Guard**: Expanded [telemetry_alert.py](file:///Users/nilbot/playground/autogo-mlx/scripts/telemetry_alert.py) to check pass rates for the first 10 plies (`M0` through `M9`) across all self-play games, enforcing a strict 5.0% threshold.
+2. **Move 60 Legal Pass Gate**: Modified the batched evaluator callbacks in both [gameplay.py](../../../src/autogo_mlx/gameplay.py) and [nn_mcts.py](../../../src/autogo_mlx/agents/nn_mcts.py) to legally block the `PASS` action under move 60.
+3. **Multi-Ply Telemetry Guard**: Expanded [telemetry_alert.py](../../../scripts/telemetry_alert.py) to check pass rates for the first 10 plies (`M0` through `M9`) across all self-play games, enforcing a strict 5.0% threshold.
 4. **Successful Retraining (Attempt 7)**: Ran all 13 iterations of self-play and training under the new guards. The early pass rates stayed at **exactly 0.00%**, and policy training accuracy reached **80.00%**.
 5. **Parity Verification**: The final model (`iter13.safetensors`) achieved a stable **50.00% win rate** against `iter0` in evaluation play, proving that OOD state blindness was successfully resolved and the PASS attractor was cured.
 

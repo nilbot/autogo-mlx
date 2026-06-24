@@ -6,7 +6,7 @@ This question arose during the triage of Iteration 7 (producing `iter8`), which 
 ## Answer
 
 ### 1. Replay Buffer Structure (Symlinking)
-At each iteration $N$ of the reinforcement learning loop, the orchestrator script ([run_iteration.sh](file:///Users/nilbot/playground/autogo-mlx/experiments/001_train_from_scratch/run_iteration.sh)) cleans the replay buffer directory (`experiments/001_train_from_scratch/selfplay/replay_buffer`) and symlinks all completed self-play games (each iteration generates exactly 1,500 games) from the current iteration and the past two iterations:
+At each iteration $N$ of the reinforcement learning loop, the orchestrator script ([run_iteration.sh](../../experiments/001_train_from_scratch/run_iteration.sh)) cleans the replay buffer directory (`experiments/001_train_from_scratch/selfplay/replay_buffer`) and symlinks all completed self-play games (each iteration generates exactly 1,500 games) from the current iteration and the past two iterations:
 * **Current iteration**: `selfplay/iter{N}`
 * **Previous iteration**: `selfplay/iter{N-1}`
 * **Two iterations ago**: `selfplay/iter{N-2}`
@@ -14,7 +14,7 @@ At each iteration $N$ of the reinforcement learning loop, the orchestrator scrip
 To prevent filename collisions in the flat replay buffer directory, each symlinked file is prefixed with its source iteration index (e.g., `iter7_game_0000.npz`).
 
 ### 2. Dataset Loading & Shuffling
-The training script ([train.py](file:///Users/nilbot/playground/autogo-mlx/experiments/001_train_from_scratch/train.py)) initializes the dataset using the [GoDataset](file:///Users/nilbot/playground/autogo-mlx/src/autogo_mlx/dataset.py#L283) class:
+The training script ([train.py](../../experiments/001_train_from_scratch/train.py)) initializes the dataset using the [GoDataset](../../src/autogo_mlx/dataset.py#L283) class:
 * `GoDataset` scans all `.npz` files in `replay_buffer`, parsing position counts per file and computing a global cumulative sum over all positions.
 * When training starts, the batch generator is initialized with global shuffling enabled:
   ```python

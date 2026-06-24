@@ -19,9 +19,9 @@ This plan details the implementation steps, version control conventions, checkpo
 To conserve token usage while ensuring we catch the transition precisely:
 1. **Current State**: Iteration 9 self-play is active (currently running).
 2. **Monitoring Strategy**:
-   * We are tracking progress using an **8-hour recurring check-in cron job** ([task-1347](file:///Users/nilbot/.gemini/antigravity/brain/78f9c0ac-be31-429b-981e-a320ee9d6e72/.system_generated/tasks/task-1347.log)).
+   * We are tracking progress using an **8-hour recurring check-in cron job** ([task-1347](../../../../../.gemini/antigravity/brain/78f9c0ac-be31-429b-981e-a320ee9d6e72/.system_generated/tasks/task-1347.log)).
    * **Projected Completion of Iteration 9**: June 10th (today), approx. 04:00 PM local time.
-   * **Transition Event**: The loop will automatically abort with exit code `99` during [telemetry_alert.py](file:///Users/nilbot/playground/autogo-mlx/scripts/telemetry_alert.py) right after `iter10.safetensors` is trained.
+   * **Transition Event**: The loop will automatically abort with exit code `99` during [telemetry_alert.py](../../../scripts/telemetry_alert.py) right after `iter10.safetensors` is trained.
 
 ---
 
@@ -55,29 +55,29 @@ cp experiments/001_train_from_scratch/checkpoints/iter*.safetensors experiments/
 We will modify the core codebase components as follows:
 
 ### A. Model Architecture
-#### [MODIFY] [model.py](file:///Users/nilbot/playground/autogo-mlx/src/autogo_mlx/model.py)
+#### [MODIFY] [model.py](../../../src/autogo_mlx/model.py)
 * Add a 2-layer convolutional **Ownership Head** mapping trunk features (128 channels) to a $9\times9$ grid output.
 * Integrate `mx.tanh` activation for spatial ownership prediction (values in $[-1.0, +1.0]$).
 
 ### B. Loss Formulation
-#### [MODIFY] [loss.py](file:///Users/nilbot/playground/autogo-mlx/src/autogo_mlx/loss.py)
+#### [MODIFY] [loss.py](../../../src/autogo_mlx/loss.py)
 * Implement Mean Squared Error (MSE) loss for final ownership targets.
 * Implement a masking factor: only compute ownership loss for positions belonging to games that ended via `double_pass`. Mask out resigned or max-move games (`weight = 0.0`).
 * Incorporate into the joint optimizer: `total_loss = policy_loss + value_loss + 0.1 * ownership_loss`.
 
 ### C. Dataset Loader
-#### [MODIFY] [dataset.py](file:///Users/nilbot/playground/autogo-mlx/src/autogo_mlx/dataset.py)
+#### [MODIFY] [dataset.py](../../../src/autogo_mlx/dataset.py)
 * Implement a dynamic BFS flood-fill algorithm (Tromp-Taylor rules) on the final board frame `boards[-1]` of double-pass games to calculate the final territory map.
 * Ensure spatial alignment: apply the active D4 augmentation (rotations and flips) to the ownership target map and flip signs if it is White's turn to play.
 
 ### D. Training Loop and Warm-Up Gating
-#### [MODIFY] [train.py](file:///Users/nilbot/playground/autogo-mlx/experiments/001_train_from_scratch/train.py)
+#### [MODIFY] [train.py](../../../experiments/001_train_from_scratch/train.py)
 * Implement **Head Warm-up**: For the first 1,000 steps of each iteration, zero out the gradients for all parameters in the shared trunk and policy head, updating only the value and ownership heads.
 * Implement support for a 10% validation set split to evaluate generalization performance.
 
 ### E. Orchestration and Symlinking
-#### [MODIFY] [run_iteration.sh](file:///Users/nilbot/playground/autogo-mlx/experiments/001_train_from_scratch/run_iteration.sh)
-* Remove the fail-fast transition stop trigger from [telemetry_alert.py](file:///Users/nilbot/playground/autogo-mlx/scripts/telemetry_alert.py).
+#### [MODIFY] [run_iteration.sh](../../../experiments/001_train_from_scratch/run_iteration.sh)
+* Remove the fail-fast transition stop trigger from [telemetry_alert.py](../../../scripts/telemetry_alert.py).
 * Implement experience replay symlinking: dynamically symlink games from the current iteration and the previous two iterations into a `selfplay/replay_buffer` folder.
 * Point the training script `--dataset-dir` to `selfplay/replay_buffer`.
 * Implement training of a **Sibling Model** alongside the main model on the symlinked dataset.
@@ -121,7 +121,7 @@ We have completed the workspace cleanup, updated the codebase with the Attempt 8
 * Moved Attempt 7 checkpoints and self-play data to `experiments/001_train_from_scratch/attempt7_backup`.
 
 ### 2. MCTS Progressive Sims Capped at 128
-* Modified [collect.py](file:///Users/nilbot/playground/autogo-mlx/experiments/001_train_from_scratch/collect.py#L110-L121) to scale simulations up to `128` (instead of capping at `64` in Attempt 7) for iterations >= 5:
+* Modified [collect.py](../../../experiments/001_train_from_scratch/collect.py#L110-L121) to scale simulations up to `128` (instead of capping at `64` in Attempt 7) for iterations >= 5:
   ```python
   if iteration < 4:
       args.n_simulations = 16
@@ -132,7 +132,7 @@ We have completed the workspace cleanup, updated the codebase with the Attempt 8
   ```
 
 ### 3. Configurable Parameter Setup & Two-Phase Opponent Pooling Schedule
-* Modified [run_iteration.sh](file:///Users/nilbot/playground/autogo-mlx/experiments/001_train_from_scratch/run_iteration.sh) to:
+* Modified [run_iteration.sh](../../../experiments/001_train_from_scratch/run_iteration.sh) to:
   - Expose default parameters: `NUM_GAMES` (default 10000), `N_SIMULATIONS` (default 128), and `TRAIN_STEPS` (default 2000).
   - Implement a conditional check inside the sequence loop to automatically transition from Phase 1 (Pure self-play) to Phase 2 (Opponent pooled self-play) starting at Iteration 11:
     ```bash
@@ -164,7 +164,7 @@ NUM_GAMES=5 NUM_HIGH_SIMS_GAMES=2 LOW_SIMULATIONS=8 TRAIN_STEPS=2 uv run bash ex
 We probed the latest checkpoints (`iter5` and `iter6`) with the production budget of 128 simulations:
 * **Game Duration**: Probing games with `iter5` averaged **33.78s**, while `iter6` averaged **91.12s** (due to longer games).
 * **Post-60 Pass Loop Pathology**: As soon as the move 60 gate opens, the losing player begins passing on **every single turn**. The winning player keeps playing board moves to maximize territory, resulting in games dragging out to the 250-move limit and huge score differentials (e.g. +73.5 points).
-* Full details and case studies are recorded in [analysis_results.md](file:///Users/nilbot/.gemini/antigravity/brain/78f9c0ac-be31-429b-981e-a320ee9d6e72/analysis_results.md).
+* Full details and case studies are recorded in [analysis_results.md](../../../../../.gemini/antigravity/brain/78f9c0ac-be31-429b-981e-a320ee9d6e72/analysis_results.md).
 
 ---
 
