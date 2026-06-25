@@ -222,8 +222,11 @@ def main() -> None:
                 valid_past = []
                 for p in past_ckpts:
                     m = re.search(r"iter(\d+)", p.name)
-                    if m and int(m.group(1)) < current_iter:
-                        valid_past.append(p)
+                    if m:
+                        past_iter = int(m.group(1))
+                        # Restrict opponent pool to iteration >= 10 to avoid DDK/random model contamination (iter0-9)
+                        if past_iter < current_iter and past_iter >= 10:
+                            valid_past.append(p)
                 if valid_past:
                     chosen_past = np.random.choice(valid_past)
                     # Dynamically detect channel shape of historical checkpoint

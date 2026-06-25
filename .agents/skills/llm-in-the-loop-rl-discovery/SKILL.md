@@ -52,7 +52,10 @@ Run Python inspection scripts on the newly generated self-play games (`experimen
      * *Zone 4 (4th line)*
      * *Zone 5 (Center / Tengen)*
 4. **Value-Policy Alignment ($A_{\text{VP}}$)**:
-   * Correlation or cosine similarity between the policy prior and the MCTS search visits distribution.
+   * Correlation or cosine similarity between the policy prior and the MCTS search visits distribution. A sudden, significant drop (e.g., from $> 0.85$ down to $< 0.78$) indicates representation mismatch or training data corruption.
+5. **League Play Opponent & Game-Length Metrics**:
+   * **Opponent Quality**: Check which historical checkpoint was selected as the opponent (e.g. in `logs/collect_iter{N}.log`). If the opponent selected is extremely early/weak (e.g., `iter0.safetensors` or any checkpoint before iteration 10), it will contaminate the training data.
+   * **Game Length & Capture Rate Stability**: Verify that the average game length (plies) and capture rate remain stable relative to previous iterations. A sudden drop in game length (e.g., $> 15\%$ or a z-score of $<-2.0$) or capture rate suggests uncompetitive games (typically caused by a very weak opponent or an early pass attractor) that degrade the value head's ability to model close games.
 
 ### B. Write/Update Scientific Discovery Reports
 * **llm_discovery_report.md**: Update this living research document **at the end of every iteration** with:
@@ -65,7 +68,9 @@ Run Python inspection scripts on the newly generated self-play games (`experimen
 Evaluate the Live Evaluation Gate tournament win rate of model $N+1$ vs. $N$:
 * **PROCEED**: If win rate is $\ge 55\%$, weight norms are stable, and telemetry shows no anomalies.
 * **ADJUST**: If learning slows down or minor bias is found, adjust hyperparameters (e.g. learning rate, PUCT, temperature schedule) and resume.
-* **HALT & DIAGNOSE**: If value/policy collapse occurs (e.g., entropy drops to $< 3.0$ bits, or the model loops passing).
+* **HALT & DIAGNOSE (OPPONENT CONTAMINATION / COLLAPSE)**: If value/policy collapse occurs, or if the gate win rate is $< 55\%$.
+  * *Contamination Diagnosis*: Check if `A_VP` dropped severely and if the selected opponent was a weak checkpoint (e.g., `iter0` to `iter9`). 
+  * *Remedy*: Update the opponent selection logic in `collect.py` to restrict the selection pool (e.g., to $\ge$ Iteration 10 or the last $K$ checkpoints). Delete the contaminated self-play games, re-collect, and retrain.
 
 ---
 
