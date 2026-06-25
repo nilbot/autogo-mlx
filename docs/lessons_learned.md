@@ -63,4 +63,5 @@ This document serves as a centralized knowledge base compiling the key technical
   - [Replay Buffer Symlinking and Dataset Sampling](qna/replay-buffer-sampling.md)
   - [Preventing RL Collapse with PCR](qna/preventing-rl-collapse-with-pcr.md)
   - [Unified Memory and League Play Design](qna/unified-memory-and-league-play-design.md)
+  - [Opponent Selection Pool Contamination (The iter0 Effect)](qna/opponent-pool-contamination.md)
 
