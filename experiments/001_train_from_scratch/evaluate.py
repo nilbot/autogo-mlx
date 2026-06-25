@@ -40,6 +40,7 @@ def play_single_game(
     board_size: int,
     seed: int,
     opp_name: str,
+    save_sgf_dir: str = "",
 ) -> None:
     global games_completed, model_wins, opponent_wins
     game_seed = seed + game_idx
@@ -89,6 +90,20 @@ def play_single_game(
             max_moves=250,
             seed=game_seed,
         )
+
+        # Save SGF trace if requested
+        if save_sgf_dir:
+            try:
+                from autogo_mlx.sgf import save_sgf_game
+                sgf_path = Path(save_sgf_dir) / f"game_{game_idx:03d}.sgf"
+                save_sgf_game(
+                    filepath=sgf_path,
+                    record=record,
+                    black_name=black_name,
+                    white_name=white_name,
+                )
+            except Exception as e:
+                print(f"Warning: Failed to save SGF for game {game_idx}: {e}", flush=True)
 
         # Determine who won
         model_won = False
@@ -167,6 +182,12 @@ def main() -> None:
         default=0.0,
         help="Minimum win rate (percentage) to exit successfully; otherwise exit with code 2",
     )
+    parser.add_argument(
+        "--save-sgf-dir",
+        type=str,
+        default="",
+        help="Directory to save evaluation game traces as SGF files",
+    )
     args = parser.parse_args()
 
     checkpoint_path = Path(args.checkpoint)
@@ -229,6 +250,7 @@ def main() -> None:
                     board_size=args.board_size,
                     seed=args.seed,
                     opp_name=opp_name,
+                    save_sgf_dir=args.save_sgf_dir,
                 )
                 for i in range(args.num_games)
             ]

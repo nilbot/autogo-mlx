@@ -20,6 +20,8 @@ MIN_EPOCHS=${MIN_EPOCHS:-1.10}
 NUM_HIGH_SIMS_GAMES=${NUM_HIGH_SIMS_GAMES:-100}
 LOW_SIMULATIONS=${LOW_SIMULATIONS:-16}
 RESUME=${RESUME:-false}
+LR=${LR:-1e-3}
+LR_SIB=${LR_SIB:-2e-3}
 
 mkdir -p "${EXP_DIR}/checkpoints"
 mkdir -p "${EXP_DIR}/logs"
@@ -53,7 +55,7 @@ if [ "$START" -eq 0 ] && [ ! -f "${EXP_DIR}/checkpoints/iter0.safetensors" ]; th
         --save-checkpoint "${EXP_DIR}/checkpoints/iter0.safetensors" \
         --steps "$TRAIN_STEPS" \
         --min-epochs "${MIN_EPOCHS}" \
-        --lr 1e-3 \
+        --lr "$LR" \
         --batch-size 64 \
         --seed 42 \
         --in-channels "$IN_CHANNELS" \
@@ -219,7 +221,7 @@ for ITER in $(seq "$START" "$END"); do
         --save-checkpoint "$NEXT_CKPT" \
         --steps "$TRAIN_STEPS" \
         --min-epochs "${MIN_EPOCHS}" \
-        --lr 1e-3 \
+        --lr "$LR" \
         --batch-size 64 \
         --seed $((42 + ITER * 200)) \
         --in-channels "$IN_CHANNELS" \
@@ -236,7 +238,7 @@ for ITER in $(seq "$START" "$END"); do
         --save-checkpoint "$SIB_CKPT" \
         --steps "$TRAIN_STEPS" \
         --min-epochs "${MIN_EPOCHS}" \
-        --lr 2e-3 \
+        --lr "$LR_SIB" \
         --batch-size 64 \
         --seed $((142 + ITER * 200)) \
         --in-channels "$IN_CHANNELS" \
@@ -268,6 +270,8 @@ for ITER in $(seq "$START" "$END"); do
     fi
     
     # Run evaluation with D4 ensembling enabled and strict target win rate of >= 55%
+    EVAL_SGF_DIR="${EXP_DIR}/selfplay/iter${ITER}/eval_gate"
+    mkdir -p "$EVAL_SGF_DIR"
     uv run python "${EXP_DIR}/evaluate.py" \
         --checkpoint "$NEXT_CKPT" \
         --opponent-checkpoint "$CKPT" \
@@ -278,6 +282,7 @@ for ITER in $(seq "$START" "$END"); do
         --in-channels "$IN_CHANNELS" \
         --d4-ensemble \
         --min-win-rate 55.0 \
+        --save-sgf-dir "$EVAL_SGF_DIR" \
         2>&1 | tee "${EXP_DIR}/logs/eval_gate_iter${NEXT}.log"
         
     t1_eval=$(date +%s)

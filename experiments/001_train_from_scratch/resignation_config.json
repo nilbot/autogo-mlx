@@ -1,4 +1,4 @@
 {
-  "resign_threshold": 0.11,
+  "resign_threshold": 0.15,
   "pcr_enabled": true
 }
