@@ -138,18 +138,23 @@ def main() -> None:
     )
     args = parser.parse_args()
     
-    exp_dir = Path("/Users/nilbot/playground/autogo-mlx/experiments/001_train_from_scratch")
+    script_dir = Path(__file__).resolve().parent
+    workspace_root = script_dir.parent
+    
+    exp_dir = workspace_root / "experiments" / "001_train_from_scratch"
     selfplay_dir = exp_dir / "selfplay"
     
+    # Single source of truth in workspace docs folder
+    output_path = workspace_root / "docs" / "rl_evolution_report.md"
+    compile_report(selfplay_dir, output_path, board_size=9)
+    
+    # Also synchronize to brain dir if provided
     if args.brain_dir:
         brain_dir = Path(args.brain_dir)
-    else:
-        brain_dir = Path("/Users/nilbot/.gemini/antigravity/brain/78f9c0ac-be31-429b-981e-a320ee9d6e72")
-        
-    brain_dir.mkdir(parents=True, exist_ok=True)
-    output_path = brain_dir / "rl_evolution_report.md"
-    
-    compile_report(selfplay_dir, output_path, board_size=9)
+        brain_dir.mkdir(parents=True, exist_ok=True)
+        brain_output_path = brain_dir / "rl_evolution_report.md"
+        brain_output_path.write_text(output_path.read_text())
+        print(f"Copied evolution report to brain: {brain_output_path}")
 
 
 if __name__ == "__main__":
