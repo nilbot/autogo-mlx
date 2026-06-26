@@ -6,19 +6,24 @@ By leveraging Apple Silicon's unified memory architecture, Metal-accelerated GPU
 
 ---
 
-## 🎉 Milestone Achieved: Converged RL Self-Play
-We have successfully completed our core milestone: **Reinforcement Learning from scratch on Apple Silicon**, producing an agent (`iter12`) with a **99.0%** win rate against a random opponent after 24 hours of local selfplay training. The port is now fully completed, verified, and ready for further exploration!
+## 🎉 Milestone Achieved: Phase 2 Decoupled Value Training
 
-We are now actively developing enhancements to maximize performance and RL robustness:
-*   **[`docs/selfplay_improvements.md`](docs/selfplay_improvements.md):** Our active, living design document for post-porting performance and algorithmic optimizations.
+We have successfully completed our core Phase 2 milestone: **Multi-Iteration Reinforcement Learning with Decoupled Heads**, producing a model (`iter21`) using an Option A stop-gradient decoupled trunk architecture.
+* The model successfully passed the live MCTS evaluation gate against `iter20` with a **55.0%** win rate (**22 wins, 18 losses**) over 40 games with D4 ensembling enabled.
+* The run completed 21 iterations of self-play and optimization without experiencing representation collapse or early PASS attractor loops.
 
 ---
 
 ## 📖 Key Documentation
 
-*   **[`docs/porting_to_mlx/SUMMARY.md`](docs/porting_to_mlx/SUMMARY.md):** Deep technical write-up detailing the PyTorch to MLX translation, layout adaptations (NHWC), FFI batching optimizations, free-threaded nogil compatibility, and reinforcement learning convergence results. **(Read this first!)**
-*   **[`docs/porting_to_mlx/PORT_PLAN.md`](docs/porting_to_mlx/PORT_PLAN.md):** The 14-phase implementation plan for the core MLX port, all fully checked off.
-*   **[`docs/system_overview.md`](docs/system_overview.md):** Rationale and orientation document analyzing the design philosophy of the AutoGo system.
+For a holistic overview of the system design, historical failures, and research findings, see our central documentation portal:
+* **👉 [`docs/README.md`](docs/README.md):** Main entrypoint and navigation guide for all documentation.
+
+Key documents located in the [`docs/`](docs/) directory:
+* **[`docs/system_overview.md`](docs/system_overview.md):** Architectural details of our current decoupled model trunk, spatial mask propagation, MCTS D4 ensembling, and PCR collapse prevention.
+* **[`docs/rl_findings/phase2_rl_training_history.md`](docs/rl_findings/phase2_rl_training_history.md):** Chronological log of retraining Attempts 1-9 (A01-A10), detailing our debug progress on memory caching, PASS attractor loops, and stop-gradient pivots.
+* **[`docs/rl_evolution_report.md`](docs/rl_evolution_report.md):** Behavioral metrics, capture densities, and spatial move heatmaps across training iterations.
+* **[`docs/qna/`](docs/qna/):** Detailed evidence-driven technical logs mapping theoretical proofs, equations, and code implementations (unified memory, Elo calibration, PCR design).
 
 ---
 
@@ -47,7 +52,7 @@ Compile the high-performance C++ pybind11 Go engine and MCTS core:
 ```
 
 ### 5. Run the Test Suite
-Confirm that the entire pipeline is functionally correct and passes all 14 tests:
+Confirm that the entire pipeline is functionally correct:
 ```sh
 uv run pytest
 ```
@@ -64,19 +69,19 @@ cd experiments/000_smoke
 ```
 
 ### Reinforcement Learning from Scratch
-To kick off a multi-iteration self-play RL training loop from scratch:
+To kick off the multi-iteration self-play RL training loop from scratch:
 ```sh
 cd experiments/001_train_from_scratch
-./run_iteration.sh 0 5
+./run_iteration.sh 0 21
 ```
 
 ---
 
 ## 🛠️ Repository Structure
 
-*   `src/autogo_mlx/` - Core Python package implementing the MLX models, loss, custom dataset, and game execution.
-*   `scripts/` - Production-level automation, utility, and build scripts (e.g., C++ compilation, telemetry checks, evolution report compilers).
-*   `scratch/` - Temporary ad-hoc debug files, exploratory scripts, and local diagnostic sandboxes.
-*   `tests/` - Robust test suite validating every critical compute boundary.
-*   `experiments/` - Configs, scripts, and logs tracking active training runs.
-*   `third_party/autogo/` - Read-only git submodule of upstream PyTorch code with customized local patching for macOS systems.
+* `src/autogo_mlx/` - Core Python package implementing the MLX models, loss, custom dataset, and game execution.
+* `scripts/` - Production-level automation, utility, and build scripts (e.g., C++ compilation, telemetry checks, evolution report compilers).
+* `scratch/` - Temporary ad-hoc debug files, exploratory scripts, and local diagnostic sandboxes.
+* `tests/` - Robust test suite validating every critical compute boundary.
+* `experiments/` - Configs, scripts, and logs tracking active training runs.
+* `third_party/autogo/` - Read-only git submodule of upstream PyTorch code.
