@@ -115,3 +115,17 @@ Currently, the value head predicts only binary win/loss probability (`[0, 1]`) u
 | **P1** | **Opponent Checkpoint Pool (League)** | Medium | 🛡️ Immune to strategy collapse / cycles |
 | **P2** | **Score Prediction auxiliary head** | Medium | 📈 Better policy gradients, faster training |
 | **P2** | **Multi-ply History Input (18 Channels)** | Medium | 🧠 Native representation of situational Ko / Superko |
+
+---
+
+## 🏁 Post-Implementation Update (Phase 2 & Attempt 8)
+
+Nearly all proposed improvements were successfully implemented during the Phase 2 scale-up and Attempt 8 runs:
+- **Vectorized Self-Play**: Implemented dynamic pool-refilling (pool swapping) in `gameplay.py` which keeps GPU batches fully saturated at exactly 64 games.
+- **Progressive MCTS Simulations**: Capped simulations at 128 (scaling from 16 to 128 as training progressed).
+- **Opponent Checkpoint Pool**: Integrated a checkpoints pool directory for league play starting at Iteration 11. See [Unified Memory and League Play Design](qna/unified-memory-and-league-play-design.md).
+- **Multi-ply History (18 Channels)**: Enabled full 18-channel history alignment.
+- **Auxiliary Head (Score Prediction)**: Integrated a dense spatial ownership head trained on Tromp-Taylor territory maps.
+
+For a summary of lessons learned across these attempts, see the [Lessons Learned Guide](lessons_learned.md).
+
