@@ -28,7 +28,7 @@ from pathlib import Path
 import mlx.core as mx
 import numpy as np
 
-from autogo_mlx.dataset import _one_hot_board, _compute_liberties_numpy
+from autogo_mlx.dataset import _one_hot_board, _compute_liberties_numpy, _d4_apply
 from autogo_mlx.model import SizeInvariantGoResNet
 
 
@@ -76,6 +76,7 @@ class MLXEvaluator:
         n_blocks: int = 10,
         value_hidden: int = 64,
         in_channels: int = 3,
+        d4_ensemble: bool = False,
     ) -> None:
         self.checkpoint_path = Path(checkpoint_path)
         if not self.checkpoint_path.exists():
@@ -84,6 +85,7 @@ class MLXEvaluator:
         self.pass_index = self.board_size * self.board_size
         self.n_actions = self.pass_index + 1
         self.in_channels = int(in_channels)
+        self.d4_ensemble = d4_ensemble
 
         self.model = SizeInvariantGoResNet(
             channels=channels,
@@ -133,69 +135,149 @@ class MLXEvaluator:
         if not (0 <= legal[0] and legal[-1] < self.n_actions):
             raise ValueError(f"legal action out of range [0, {self.n_actions})")
 
-        if self.in_channels == 8:
-            lib_1, lib_2, lib_3, lib_4 = _compute_liberties_numpy(board_HW)
-            ko = _find_ko_point_evaluator(board_HW, to_play, set(legal))
+        if self.d4_ensemble:
+            if self.in_channels == 8:
+                lib_1, lib_2, lib_3, lib_4 = _compute_liberties_numpy(board_HW)
+                ko = _find_ko_point_evaluator(board_HW, to_play, set(legal))
+                one_hot = _one_hot_board(board_HW, to_play)
+                board_features = np.zeros((self.board_size, self.board_size, 8), dtype=np.float32)
+                board_features[..., :3] = one_hot
+                board_features[..., 3] = lib_1
+                board_features[..., 4] = lib_2
+                board_features[..., 5] = lib_3
+                board_features[..., 6] = lib_4
+                board_features[..., 7] = ko
+            elif self.in_channels == 18:
+                one_hot = _one_hot_board(board_HW, to_play)
+                player_stones = one_hot[..., 1]
+                opponent_stones = one_hot[..., 2]
+                player_history = [player_stones]
+                opponent_history = [opponent_stones]
+                opponent = 3 - to_play
+                for i in range(7):
+                    if history_boards is not None and i < len(history_boards) and history_boards[i] is not None:
+                        h_board = history_boards[i]
+                        h_player = (h_board == to_play).astype(np.float32)
+                        h_opponent = (h_board == opponent).astype(np.float32)
+                    else:
+                        h_player = np.zeros((self.board_size, self.board_size), dtype=np.float32)
+                        h_opponent = np.zeros((self.board_size, self.board_size), dtype=np.float32)
+                    player_history.append(h_player)
+                    opponent_history.append(h_opponent)
+                board_features = np.zeros((self.board_size, self.board_size, 18), dtype=np.float32)
+                for i in range(8):
+                    board_features[..., i] = player_history[i]
+                    board_features[..., 8 + i] = opponent_history[i]
+                color_val = 1.0 if to_play == 1 else 0.0
+                board_features[..., 16] = color_val
+                ko_plane = _find_ko_point_evaluator(board_HW, to_play, set(legal))
+                board_features[..., 17] = ko_plane
+            else:
+                board_features = _one_hot_board(board_HW, to_play)
 
-            one_hot = _one_hot_board(board_HW, to_play)
-            board_8ch = np.zeros(
-                (self.board_size, self.board_size, 8), dtype=np.float32
-            )
-            board_8ch[..., :3] = one_hot
-            board_8ch[..., 3] = lib_1
-            board_8ch[..., 4] = lib_2
-            board_8ch[..., 5] = lib_3
-            board_8ch[..., 6] = lib_4
-            board_8ch[..., 7] = ko
+            symmetrical_inputs = []
+            for sym in range(8):
+                feat_CHW = board_features.transpose(2, 0, 1)
+                feat_sym_CHW = _d4_apply(feat_CHW, sym)
+                feat_sym_HWC = feat_sym_CHW.transpose(1, 2, 0)
+                symmetrical_inputs.append(feat_sym_HWC)
 
-            board_BHWC = mx.array(board_8ch[None])
-        elif self.in_channels == 18:
-            one_hot = _one_hot_board(board_HW, to_play)
-            player_stones = one_hot[..., 1]
-            opponent_stones = one_hot[..., 2]
+            board_BHWC = mx.array(np.stack(symmetrical_inputs))
+            mask_BHW = mx.ones((8, self.board_size, self.board_size))
+            policy_BA, value_B = self.model(board_BHWC, mask_BHW)
+            mx.eval(policy_BA, value_B)
 
-            player_history = [player_stones]
-            opponent_history = [opponent_stones]
-            opponent = 3 - to_play
+            policy_np = np.array(policy_BA, dtype=np.float64)
+            value_np = np.array(value_B, dtype=np.float64)
 
-            for i in range(7):
-                if history_boards is not None and i < len(history_boards) and history_boards[i] is not None:
-                    h_board = history_boards[i]
-                    h_player = (h_board == to_play).astype(np.float32)
-                    h_opponent = (h_board == opponent).astype(np.float32)
-                else:
-                    h_player = np.zeros((self.board_size, self.board_size), dtype=np.float32)
-                    h_opponent = np.zeros((self.board_size, self.board_size), dtype=np.float32)
-                player_history.append(h_player)
-                opponent_history.append(h_opponent)
+            values = 1.0 / (1.0 + np.exp(-value_np))
+            avg_value = float(np.mean(values))
 
-            board_18ch = np.zeros(
-                (self.board_size, self.board_size, 18), dtype=np.float32
-            )
-            for i in range(8):
-                board_18ch[..., i] = player_history[i]
-                board_18ch[..., 8 + i] = opponent_history[i]
+            avg_probs = np.zeros(self.n_actions, dtype=np.float64)
+            for sym in range(8):
+                logits = policy_np[sym]
+                logits_stable = logits - logits.max()
+                exp_logits = np.exp(logits_stable)
+                probs = exp_logits / exp_logits.sum()
 
-            color_val = 1.0 if to_play == 1 else 0.0
-            board_18ch[..., 16] = color_val
+                inv_sym = 3 if sym == 1 else (1 if sym == 3 else sym)
+                spatial_probs = probs[:self.pass_index].reshape(self.board_size, self.board_size)
+                spatial_probs_restored = _d4_apply(spatial_probs[None], inv_sym)[0]
 
-            ko_plane = _find_ko_point_evaluator(board_HW, to_play, set(legal))
-            board_18ch[..., 17] = ko_plane
+                restored_probs = np.zeros(self.n_actions, dtype=np.float64)
+                restored_probs[:self.pass_index] = spatial_probs_restored.flatten()
+                restored_probs[self.pass_index] = probs[self.pass_index]
 
-            board_BHWC = mx.array(board_18ch[None])
+                avg_probs += restored_probs / 8.0
+
+            legal_probs = avg_probs[legal]
+            legal_probs /= legal_probs.sum()
+            policy = {a: float(p) for a, p in zip(legal, legal_probs)}
+            return policy, avg_value
         else:
-            board_BHWC = mx.array(_one_hot_board(board_HW, to_play)[None])
+            if self.in_channels == 8:
+                lib_1, lib_2, lib_3, lib_4 = _compute_liberties_numpy(board_HW)
+                ko = _find_ko_point_evaluator(board_HW, to_play, set(legal))
 
-        mask_BHW = mx.ones((1, self.board_size, self.board_size))
-        policy_BA, value_B = self.model(board_BHWC, mask_BHW)
-        mx.eval(policy_BA, value_B)
+                one_hot = _one_hot_board(board_HW, to_play)
+                board_8ch = np.zeros(
+                    (self.board_size, self.board_size, 8), dtype=np.float32
+                )
+                board_8ch[..., :3] = one_hot
+                board_8ch[..., 3] = lib_1
+                board_8ch[..., 4] = lib_2
+                board_8ch[..., 5] = lib_3
+                board_8ch[..., 6] = lib_4
+                board_8ch[..., 7] = ko
 
-        logits_A = np.array(policy_BA[0], dtype=np.float64)
-        legal_logits = logits_A[legal]
-        legal_logits -= legal_logits.max()
-        exp = np.exp(legal_logits)
-        probs = exp / exp.sum()
-        policy = {a: float(p) for a, p in zip(legal, probs)}
+                board_BHWC = mx.array(board_8ch[None])
+            elif self.in_channels == 18:
+                one_hot = _one_hot_board(board_HW, to_play)
+                player_stones = one_hot[..., 1]
+                opponent_stones = one_hot[..., 2]
 
-        value = 1.0 / (1.0 + math.exp(-float(value_B[0])))
-        return policy, value
+                player_history = [player_stones]
+                opponent_history = [opponent_stones]
+                opponent = 3 - to_play
+
+                for i in range(7):
+                    if history_boards is not None and i < len(history_boards) and history_boards[i] is not None:
+                        h_board = history_boards[i]
+                        h_player = (h_board == to_play).astype(np.float32)
+                        h_opponent = (h_board == opponent).astype(np.float32)
+                    else:
+                        h_player = np.zeros((self.board_size, self.board_size), dtype=np.float32)
+                        h_opponent = np.zeros((self.board_size, self.board_size), dtype=np.float32)
+                    player_history.append(h_player)
+                    opponent_history.append(h_opponent)
+
+                board_18ch = np.zeros(
+                    (self.board_size, self.board_size, 18), dtype=np.float32
+                )
+                for i in range(8):
+                    board_18ch[..., i] = player_history[i]
+                    board_18ch[..., 8 + i] = opponent_history[i]
+
+                color_val = 1.0 if to_play == 1 else 0.0
+                board_18ch[..., 16] = color_val
+
+                ko_plane = _find_ko_point_evaluator(board_HW, to_play, set(legal))
+                board_18ch[..., 17] = ko_plane
+
+                board_BHWC = mx.array(board_18ch[None])
+            else:
+                board_BHWC = mx.array(_one_hot_board(board_HW, to_play)[None])
+
+            mask_BHW = mx.ones((1, self.board_size, self.board_size))
+            policy_BA, value_B = self.model(board_BHWC, mask_BHW)
+            mx.eval(policy_BA, value_B)
+
+            logits_A = np.array(policy_BA[0], dtype=np.float64)
+            legal_logits = logits_A[legal]
+            legal_logits -= legal_logits.max()
+            exp = np.exp(legal_logits)
+            probs = exp / exp.sum()
+            policy = {a: float(p) for a, p in zip(legal, probs)}
+
+            value = 1.0 / (1.0 + math.exp(-float(value_B[0])))
+            return policy, value

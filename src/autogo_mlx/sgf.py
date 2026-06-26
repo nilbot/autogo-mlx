@@ -142,3 +142,45 @@ def import_sgf_directory(
             continue
 
     return count
+
+
+def save_sgf_game(
+    filepath: str | Path,
+    record: GameRecord,
+    black_name: str | None = None,
+    white_name: str | None = None,
+) -> None:
+    """Save a GameRecord to a standard SGF file."""
+    path = Path(filepath)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    b_name = black_name or record.black_agent or "Black"
+    w_name = white_name or record.white_agent or "White"
+    res = record.result or "Draw"
+    sz = record.board_size
+    km = getattr(record, "komi", 7.5)
+
+    sgf_parts = [
+        "(;GM[1]FF[4]CA[UTF-8]AP[AutoGo-MLX]",
+        f"SZ[{sz}]",
+        f"KM[{km:.1f}]",
+        f"PB[{b_name}]",
+        f"PW[{w_name}]",
+        f"RE[{res}]",
+    ]
+    header = "".join(sgf_parts)
+
+    move_nodes = []
+    for idx, (row, col) in enumerate(record.moves):
+        color = "B" if idx % 2 == 0 else "W"
+        if row == -1 and col == -1:
+            move_str = ""
+        else:
+            col_char = chr(ord("a") + col)
+            row_char = chr(ord("a") + row)
+            move_str = col_char + row_char
+        move_nodes.append(f";{color}[{move_str}]")
+
+    content = header + "\n" + "\n".join(move_nodes) + "\n)"
+    path.write_text(content, encoding="utf-8")
+
