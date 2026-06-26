@@ -42,10 +42,27 @@ This document serves as a centralized knowledge base compiling the key technical
 
 ### 2. GPU Saturation via Dynamic Pool Refilling (Pool Swapping)
 * **Problem**: In batched self-play, standard division of games into chunks results in a "sloped drop" in batch size as games finish, causing severe GPU under-saturation.
-* **Solution**: Implementing a dynamic slot pool in `play_vectorized_games` (`gameplay.py`) that refills finished slots immediately keeps the active batch size saturated at exactly 64 at all times.
+* **Solution**: Implementing a dynamic slot pool in `play_vectorized_games` (`gameplay.py`) that refills finished slots immediately keeps the active batch size saturated at exactly 64 at all times. For memory-efficient SGF parsing architectures, see [Memory-Efficient SGF Parsing](qna/memory-efficient-sgf-parsing.md).
 
 ### 3. Liberties-Explicit representation (8-Channel vs 18-Channel)
 * **8-Channel**: (Empty, Self, Opponent, 1-Liberty, 2-Liberties, 3-Liberties, 4+-Liberties, Ko).
   * *Advantage*: Very simple, requires no temporal history sequences, and is highly robust against temporal distribution shifts.
 * **18-Channel**: (8 player history planes, 8 opponent history planes, player-to-move, Ko).
   * *Advantage*: Matches the standard AlphaGo Zero architecture, allowing the model to capture deep situational trends, but demands precise state history tracking.
+
+---
+
+## 🔗 Related Resources & Design Guides
+
+- **Human Ranked SFT Proposal**: [Human Ranked SFT Proposal](human-ranked-sft-proposal.md)
+- **Technical Guides & QnA**:
+  - [FCN Size-Invariant Board Transfer Mechanics](qna/fcn-size-transfer-mechanics.md)
+  - [Memory-Efficient SGF Parsing Dynamic Generator](qna/memory-efficient-sgf-parsing.md)
+  - [Zstd Compression Advantages for Replay Buffers](qna/zstd-compression-advantages.md)
+  - [Offline Elo Calibration and Validation Mathematics](qna/offline-elo-calibration.md)
+  - [Replay Buffer Symlinking and Dataset Sampling](qna/replay-buffer-sampling.md)
+  - [Preventing RL Collapse with PCR](qna/preventing-rl-collapse-with-pcr.md)
+  - [Unified Memory and League Play Design](qna/unified-memory-and-league-play-design.md)
+  - [Opponent Selection Pool Contamination (The iter0 Effect)](qna/opponent-pool-contamination.md)
+  - [Resignation Calibration and Decision Theory Mechanics](qna/resignation-calibration-mechanics.md)
+

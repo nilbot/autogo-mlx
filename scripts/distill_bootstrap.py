@@ -155,7 +155,7 @@ def main() -> None:
     ) -> tuple[mx.array, tuple[mx.array, mx.array]]:
         # For SGF, is_teacher=True matches the policy target to SGF moves
         # Value head predicts the SGF game outcome
-        loss, pol_loss, val_loss = compute_dense_loss(
+        loss, pol_loss, val_loss, _ = compute_dense_loss(
             model, board, mask, mcts_policy, winner, is_teacher
         )
         return loss, (pol_loss, val_loss)

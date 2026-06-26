@@ -4,7 +4,7 @@
 
 ## Ground rules for any session (Claude or me)
 
-- The project lives at `/Users/nilbot/playground/autogo-mlx`. Treat it as a normal git repo; if `.git` doesn't exist, `git init -b main` on the first phase.
+- The project lives at the repository root. Treat it as a normal git repo; if `.git` doesn't exist, `git init -b main` on the first phase.
 - Python tooling is **`uv`**. All commands run as `uv run ...`. The MLX dependency is added with `uv add mlx mlx-data` (mlx-data is optional but useful).
 - Target hardware: Apple Silicon laptop. CPU fallback is fine for tests, but anything performance-sensitive must run on the GPU (`mx.set_default_device(mx.gpu)`).
 - The upstream PyTorch repo is the reference, **not the codebase**. Mirror at `third_party/autogo/` (`git submodule add https://github.com/ericjang/autogo third_party/autogo`) so we can diff behavior against it but we never import from it at runtime.

@@ -14,8 +14,9 @@ def main():
     # 1. Empty board (Move 0, Black to Play)
     board = GoBoard(9)
     
-    # Setup evaluator using the final 8ch model iter12
-    checkpoint_path = "/Users/nilbot/playground/autogo-mlx/experiments/001_train_from_scratch/checkpoints/iter12.safetensors"
+    # Setup evaluator using the final 8ch model iter3
+    repo_root = Path(__file__).resolve().parents[1]
+    checkpoint_path = str(repo_root / "experiments/001_train_from_scratch/checkpoints/iter3.safetensors")
     evaluator = BatchedMLXEvaluator(
         checkpoint_path=checkpoint_path,
         board_size=9,
@@ -46,7 +47,7 @@ def main():
         
         policy_nn, value_nn = evaluator.evaluate(board_HW, to_play, legal, None)
         
-        if callback_count <= 2:
+        if callback_count <= 10:
             print(f"\n[Leaf Callback #{callback_count}]")
             print("  State to play:", "BLACK" if to_play == 1 else "WHITE")
             print("  Win prob predicted:", value_nn)

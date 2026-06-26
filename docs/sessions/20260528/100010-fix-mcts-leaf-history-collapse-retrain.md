@@ -26,12 +26,12 @@ This document details the architectural plan to fix the 18-channel history align
 ### Component 1: History-Aware MLX Evaluators
 We will modify the evaluators to accept a list of the last 7 historical board states (`history_boards`), allowing the model to be evaluated on the exact same feature distribution it is trained on.
 
-#### [MODIFY] [batched_inference.py](file:///Users/nilbot/playground/autogo-mlx/src/autogo_mlx/batched_inference.py)
+#### [MODIFY] [batched_inference.py](../../../src/autogo_mlx/batched_inference.py)
 - Update `BatchInferenceRequest` to include an optional `history_boards_list: list[list[np.ndarray] | None] | None`.
 - Modify `evaluate_batch` to accept `list[tuple[np.ndarray, int, list[int], list[np.ndarray] | None]]` and unpack the history planes list.
 - Modify the background runner's `_process_batch` method to construct the 18-channel features using the true historical states from `history_boards` for the last 7 moves, falling back to all-zeros (padding) for moves beyond the start of the game.
 
-#### [MODIFY] [inference.py](file:///Users/nilbot/playground/autogo-mlx/src/autogo_mlx/inference.py)
+#### [MODIFY] [inference.py](../../../src/autogo_mlx/inference.py)
 - Modify `MLXEvaluator.evaluate` to take an optional `history_boards: list[np.ndarray] | None = None` parameter.
 - Implement the exact 18-channel feature alignment inside `MLXEvaluator.evaluate` matching `batched_inference.py`.
 
@@ -40,7 +40,7 @@ We will modify the evaluators to accept a list of the last 7 historical board st
 ### Component 2: Vectorized Gameplay & Dynamic Batch Refilling
 We will rewrite the vectorized self-play loop to act as a pool generator keeping exactly 64 games active at all times, tracking board histories, and yielding finished games immediately.
 
-#### [MODIFY] [gameplay.py](file:///Users/nilbot/playground/autogo-mlx/src/autogo_mlx/gameplay.py)
+#### [MODIFY] [gameplay.py](../../../src/autogo_mlx/gameplay.py)
 - Implement `find_game_index(state, active_indices, boards)`: a fast, robust matching helper that correlates a virtual MCTS search node state back to its parent game in the active pool by board size, move count, and stone coordinate overlap.
 - Restructure `play_vectorized_games` as a **Generator** yielding `GameRecord`s one by one as they finish.
 - Implement **Pool Swapping**: maintain a pool of up to `max_active_games` (e.g. 64) active game slots. As soon as a game finishes in slot `s`, immediately record its final result, yield it to the caller, and if there are remaining games in `total_games` (e.g. 1000) to be played, initialize a brand new game (starting at empty board) in slot `s`.
@@ -51,7 +51,7 @@ We will rewrite the vectorized self-play loop to act as a pool generator keeping
 ### Component 3: Single-Agent History Tracking
 We will modify the MCTS agent to track the actual game history so that it works perfectly in evaluation matches.
 
-#### [MODIFY] [nn_mcts.py](file:///Users/nilbot/playground/autogo-mlx/src/autogo_mlx/agents/nn_mcts.py)
+#### [MODIFY] [nn_mcts.py](../../../src/autogo_mlx/agents/nn_mcts.py)
 - Modify `MLXNNMCTSAgent` to maintain a persistent state `self.history_boards: list[np.ndarray]` representing the boards played so far.
 - Automatically clear `self.history_boards` when a new game starts (`board.move_count() == 0` or length mismatch).
 - Pass `self.history_boards` as the historical context to the evaluator in both `single_evaluator_cb` and `batched_evaluator_cb`.
@@ -62,11 +62,11 @@ We will modify the MCTS agent to track the actual game history so that it works 
 ### Component 4: Collector/Trainer Integration
 We will update the training collection scripts and dataset loading keys.
 
-#### [MODIFY] [collect.py](file:///Users/nilbot/playground/autogo-mlx/experiments/001_train_from_scratch/collect.py)
+#### [MODIFY] [collect.py](../../../experiments/001_train_from_scratch/collect.py)
 - Update to consume the generator pattern of `play_vectorized_games`. Instead of dividing games into outer chunks of 64, pass all 1,000 games to `play_vectorized_games` with `max_active_games=64`.
 - Immediately save completed game records to disk as they are yielded, minimizing memory footprint and preserving intermediate state.
 
-#### [MODIFY] [train.py](file:///Users/nilbot/playground/autogo-mlx/experiments/001_train_from_scratch/train.py)
+#### [MODIFY] [train.py](../../../experiments/001_train_from_scratch/train.py)
 - Verify dataset checks. Note that `save_game_data` in `gameplay.py` already compresses and saves MCTS distributions under `mcts_policy=mcts_policy`, which is loaded perfectly by `dataset.py`.
 
 ---
@@ -74,7 +74,7 @@ We will update the training collection scripts and dataset loading keys.
 ## Verification Plan
 
 ### Automated Checks
-We will write a rigorous test script `/Users/nilbot/playground/autogo-mlx/tests/test_fixes_smoke.py` that:
+We will write a rigorous test script [test_fixes_smoke.py](../../../tests/test_fixes_smoke.py) that:
 1. Validates `find_game_index` across random board scenarios.
 2. Validates that `BatchedMLXEvaluator` constructs correct 18-channel arrays when supplied with deep history.
 3. Plays a batched dynamic self-play game with 18 channels and verifies that the game histories match training set expectations perfectly.

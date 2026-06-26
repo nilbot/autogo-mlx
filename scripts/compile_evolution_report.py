@@ -126,12 +126,35 @@ def compile_report(selfplay_base_dir: Path, output_file: Path, board_size: int =
 
 
 def main() -> None:
-    exp_dir = Path("/Users/nilbot/playground/autogo-mlx/experiments/001_train_from_scratch")
+    import argparse
+    import os
+    
+    parser = argparse.ArgumentParser(description="RL Strategic Evolution Report Compiler")
+    parser.add_argument(
+        "--brain-dir",
+        type=str,
+        default=os.environ.get("BRAIN_DIR", ""),
+        help="Path to the brain directory where artifacts live",
+    )
+    args = parser.parse_args()
+    
+    script_dir = Path(__file__).resolve().parent
+    workspace_root = script_dir.parent
+    
+    exp_dir = workspace_root / "experiments" / "001_train_from_scratch"
     selfplay_dir = exp_dir / "selfplay"
     
-    output_path = Path("/Users/nilbot/.gemini/antigravity/brain/03256682-5347-4137-ac70-3ad1ab7cb1cc/rl_evolution_report.md")
-    
+    # Single source of truth in workspace docs folder
+    output_path = workspace_root / "docs" / "rl_evolution_report.md"
     compile_report(selfplay_dir, output_path, board_size=9)
+    
+    # Also synchronize to brain dir if provided
+    if args.brain_dir:
+        brain_dir = Path(args.brain_dir)
+        brain_dir.mkdir(parents=True, exist_ok=True)
+        brain_output_path = brain_dir / "rl_evolution_report.md"
+        brain_output_path.write_text(output_path.read_text())
+        print(f"Copied evolution report to brain: {brain_output_path}")
 
 
 if __name__ == "__main__":
