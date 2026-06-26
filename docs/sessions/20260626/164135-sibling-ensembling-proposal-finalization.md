@@ -30,7 +30,7 @@ None. The user has approved the choices of logit-level geometric mean averaging 
 
 ### Core Inference Layer
 
-#### [MODIFY] [inference.py](../src/autogo_mlx/inference.py)
+#### [MODIFY] [inference.py](../../../src/autogo_mlx/inference.py)
 * Update `MLXEvaluator.__init__` to accept `sibling_checkpoint_path: str | Path | None = None`. If provided:
   * Initialize a second model instance `self.sibling_model` with the same hyperparameters.
   * Load sibling weights and call `mx.eval(self.sibling_model.parameters())`.
@@ -46,7 +46,7 @@ None. The user has approved the choices of logit-level geometric mean averaging 
 
 ### Play Server & API Layer
 
-#### [MODIFY] [play_server.py](../src/autogo_mlx/play_server.py)
+#### [MODIFY] [play_server.py](../../../src/autogo_mlx/play_server.py)
 * Add `ensemble_mode: str = "d4_sibling"` to the `NewGameRequest` Pydantic schema.
 * Update `MugoGame.__init__` to accept `ensemble_mode`.
 * Inside `MugoGame.__init__`, if `ensemble_mode` requires sibling ensembling:
@@ -60,7 +60,7 @@ None. The user has approved the choices of logit-level geometric mean averaging 
 
 ### Web Front-End Interface
 
-#### [MODIFY] [index.html](../src/autogo_mlx/web/index.html)
+#### [MODIFY] [index.html](../../../src/autogo_mlx/web/index.html)
 * Insert an "Inference Mode" selection dropdown in the Session Configuration panel:
   ```html
   <div class="control-row">
@@ -74,7 +74,7 @@ None. The user has approved the choices of logit-level geometric mean averaging 
   </div>
   ```
 
-#### [MODIFY] [app.js](../src/autogo_mlx/web/app.js)
+#### [MODIFY] [app.js](../../../src/autogo_mlx/web/app.js)
 * Get DOM reference to `#ensemble-select`.
 * Read `#ensemble-select` value inside `initializeGame()` and attach it to the `POST /api/new_game` JSON payload as `ensemble_mode`.
 
@@ -83,7 +83,7 @@ None. The user has approved the choices of logit-level geometric mean averaging 
 ### Verification Plan
 
 ### Automated Tests
-We will add a new test file [test_sibling_ensembling.py](../tests/test_sibling_ensembling.py) to verify:
+We will add a new test file [test_sibling_ensembling.py](../../../tests/test_sibling_ensembling.py) to verify:
 1. `MLXEvaluator` loading a single model and executing baseline evaluation successfully.
 2. `MLXEvaluator` loading a model and its sibling (mocked via duplicating weights or small dummy weights) and executing ensembled evaluation.
 3. Asserting that logit-averaging correctly implements a "veto" property when one model has highly negative logits.
@@ -142,7 +142,7 @@ We have successfully implemented and verified the Sibling Checkpoint Ensembling 
 ## 🛠️ Changes Implemented
 
 1. **Inference Layer (`src/autogo_mlx/inference.py`):**
-   - Added `sibling_checkpoint_path` configuration to [MLXEvaluator](file:///Users/nilbot/.gemini/antigravity/worktrees/autogo-mlx/finalize-sibling-ensembling-proposal/src/autogo_mlx/inference.py).
+   - Added `sibling_checkpoint_path` configuration to [MLXEvaluator](../../../src/autogo_mlx/inference.py).
    - Implemented sibling checkpoint auto-detection (`{stem}_sibling{suffix}`) with graceful baseline fallback.
    - Integrated logit-averaging (geometric mean) for policy priors and arithmetic mean for values.
    - Updated the resignation gate to use the **consensus rule** ($\max(v_{\text{main}}, v_{\text{sib}}) < \text{threshold}$).
@@ -152,11 +152,11 @@ We have successfully implemented and verified the Sibling Checkpoint Ensembling 
    - Updated the `MugoGame` wrapper to configure ensembling options on initialization.
 
 3. **Web Frontend (`src/autogo_mlx/web/`):**
-   - Added an **Inference Mode** selection dropdown in [index.html](file:///Users/nilbot/.gemini/antigravity/worktrees/autogo-mlx/finalize-sibling-ensembling-proposal/src/autogo_mlx/web/index.html).
-   - Updated [app.js](file:///Users/nilbot/.gemini/antigravity/worktrees/autogo-mlx/finalize-sibling-ensembling-proposal/src/autogo_mlx/web/app.js) to query and transmit the selected ensembling mode to the play server backend.
+   - Added an **Inference Mode** selection dropdown in [index.html](../../../src/autogo_mlx/web/index.html).
+   - Updated [app.js](../../../src/autogo_mlx/web/app.js) to query and transmit the selected ensembling mode to the play server backend.
 
 4. **Unit Tests:**
-   - Created [test_sibling_ensembling.py](file:///Users/nilbot/.gemini/antigravity/worktrees/autogo-mlx/finalize-sibling-ensembling-proposal/tests/test_sibling_ensembling.py) to cover model initialization, math validation (logit averaging, consensus resignation), and fallback paths.
+   - Created [test_sibling_ensembling.py](../../../tests/test_sibling_ensembling.py) to cover model initialization, math validation (logit averaging, consensus resignation), and fallback paths.
 
 ---
 
@@ -182,10 +182,10 @@ We wrote and ran a headless browser test (`e2e_test.js`) using `puppeteer-core` 
 The following states were captured during the E2E execution:
 
 * **Initial Page Load:**
-  ![Initial Load](/Users/nilbot/.gemini/antigravity/brain/39476d11-fd3c-42a3-b7ec-215653a11861/e2e_0_initial_load.png)
+  ![Initial Load](assets/e2e_0_initial_load.png)
 
 * **Game Initialized (D4 + Sibling):**
-  ![Initialized Game](/Users/nilbot/.gemini/antigravity/brain/39476d11-fd3c-42a3-b7ec-215653a11861/e2e_1_initialized.png)
+  ![Initialized Game](assets/e2e_1_initialized.png)
 
 * **Post-Move (After Bot Responds):**
-  ![After Moves](/Users/nilbot/.gemini/antigravity/brain/39476d11-fd3c-42a3-b7ec-215653a11861/e2e_2_after_moves.png)
+  ![After Moves](assets/e2e_2_after_moves.png)
