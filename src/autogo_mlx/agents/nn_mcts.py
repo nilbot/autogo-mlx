@@ -25,11 +25,21 @@ if TYPE_CHECKING:
 
 
 class MLXNNMCTSAgent:
-    """Agent that plays Go using MCTS driven by an MLX policy/value network.
+    """Go agent combining Monte Carlo Tree Search (MCTS) with an MLX neural network.
 
-    It constructs a C++ ``MCTSTree`` internally and runs simulations on it,
-    calling back into Python to evaluate leaf nodes using either a single or
-    batched MLX evaluator.
+    This agent traverses the search tree using a C++ native implementation (`MCTSTree`),
+    making calls back into Python/MLX to evaluate leaf node positions.
+
+    Mathematical Selection Formula:
+      For each node selection step, MCTS selects action `a` maximizing:
+        Q(s, a) + U(s, a)
+      where the exploration bonus is formulated as:
+        U(s, a) = c_puct * P(s, a) * sqrt(sum_b N(s, b)) / (1 + N(s, a))
+      and:
+        - Q(s, a): Expected action value (average game outcome or soft MCTS Q target).
+        - P(s, a): Policy prior probability predicted by the network.
+        - N(s, a): Visit count of the action.
+        - c_puct: Constant scaling the exploration influence.
     """
 
     def __init__(
@@ -42,16 +52,21 @@ class MLXNNMCTSAgent:
         temperature: float = 1.0,
         leaf_batch_size: int | None = None,
     ) -> None:
-        """Initialize the MLX NN MCTS Agent.
+        """Initializes the MLX NN MCTS Agent.
 
         Args:
-            evaluator: The MLX policy/value network evaluator.
-            n_simulations: Number of MCTS simulations per move (default: 16).
-            c_puct: Exploration constant for MCTS selection (default: 1.0).
-            dirichlet_alpha: Dirichlet noise alpha at the root (0.0 to disable).
-            temperature: Temperature for visit probabilities / move selection.
-            leaf_batch_size: Leaf batch size for parallel simulations.
-                Defaults to 8 if evaluator is batched, 0 otherwise.
+            evaluator: The single or batched MLX neural network evaluator.
+            n_simulations: Number of simulations to run per move decision.
+            c_puct: Exploration scale constant.
+            dirichlet_alpha: Root node Dirichlet noise concentration parameter.
+              Noise is mixed with policy priors via:
+                P(root, a) = (1 - eta) * P(root, a) + eta * Dir(alpha)
+              where eta = 0.25. (0.0 disables noise).
+            temperature: Softmax temperature parameter for visit count probabilities.
+              At T=1.0, moves are selected proportionally to visit counts.
+              At T=0.0 (greedy), the move with the maximum visit count is selected.
+            leaf_batch_size: Parallel leaf simulation batch size. Defaults to 8 for
+              batched evaluator, 0 for single synchronous evaluator.
         """
         self.evaluator = evaluator
         self.n_simulations = int(n_simulations)
