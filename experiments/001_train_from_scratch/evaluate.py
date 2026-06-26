@@ -40,6 +40,7 @@ def play_single_game(
     board_size: int,
     seed: int,
     opp_name: str,
+    save_sgf_dir: str = "",
 ) -> None:
     global games_completed, model_wins, opponent_wins
     game_seed = seed + game_idx
@@ -89,6 +90,20 @@ def play_single_game(
             max_moves=250,
             seed=game_seed,
         )
+
+        # Save SGF trace if requested
+        if save_sgf_dir:
+            try:
+                from autogo_mlx.sgf import save_sgf_game
+                sgf_path = Path(save_sgf_dir) / f"game_{game_idx:03d}.sgf"
+                save_sgf_game(
+                    filepath=sgf_path,
+                    record=record,
+                    black_name=black_name,
+                    white_name=white_name,
+                )
+            except Exception as e:
+                print(f"Warning: Failed to save SGF for game {game_idx}: {e}", flush=True)
 
         # Determine who won
         model_won = False
@@ -156,6 +171,23 @@ def main() -> None:
         default="",
         help="Path to opponent MLX model weights (.safetensors). If empty, plays against RandomAgent.",
     )
+    parser.add_argument(
+        "--d4-ensemble",
+        action="store_true",
+        help="Enable MCTS D4 symmetry ensembling during evaluation",
+    )
+    parser.add_argument(
+        "--min-win-rate",
+        type=float,
+        default=0.0,
+        help="Minimum win rate (percentage) to exit successfully; otherwise exit with code 2",
+    )
+    parser.add_argument(
+        "--save-sgf-dir",
+        type=str,
+        default="",
+        help="Directory to save evaluation game traces as SGF files",
+    )
     args = parser.parse_args()
 
     checkpoint_path = Path(args.checkpoint)
@@ -182,6 +214,7 @@ def main() -> None:
             batch_size=64,
             timeout_ms=1.0,
             in_channels=opp_in_channels,
+            d4_ensemble=args.d4_ensemble,
         )
 
     print(
@@ -201,6 +234,7 @@ def main() -> None:
         batch_size=64,
         timeout_ms=1.0,
         in_channels=args.in_channels,
+        d4_ensemble=args.d4_ensemble,
     )
 
     # 2. Dispatch games to thread pool
@@ -216,6 +250,7 @@ def main() -> None:
                     board_size=args.board_size,
                     seed=args.seed,
                     opp_name=opp_name,
+                    save_sgf_dir=args.save_sgf_dir,
                 )
                 for i in range(args.num_games)
             ]
@@ -241,6 +276,23 @@ def main() -> None:
         flush=True,
     )
     print("==========================================================", flush=True)
+    print(f"Peak GPU Memory: {mx.get_peak_memory() / (1024**2):.1f} MB", flush=True)
+
+    # If a specific minimum win rate is requested, fail-fast if not met.
+    if args.min_win_rate > 0.0:
+        if win_rate >= args.min_win_rate:
+            print(
+                f"🟢 SUCCESS: Win rate of {win_rate:.2f}% meets target of >= {args.min_win_rate}%!",
+                flush=True,
+            )
+            sys.exit(0)
+        else:
+            print(
+                f"❌ FAILURE: Win rate of {win_rate:.2f}% is below target of {args.min_win_rate}%!",
+                file=sys.stderr,
+                flush=True,
+            )
+            sys.exit(2)
 
     if win_rate >= 80.0:
         print(

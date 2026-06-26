@@ -134,7 +134,7 @@ def main() -> None:
         is_teacher: mx.array,
         final_score: mx.array | None = None,
     ) -> tuple[mx.array, tuple[mx.array, mx.array]]:
-        loss, pol_loss, val_loss = compute_dense_loss(
+        loss, pol_loss, val_loss, _ = compute_dense_loss(
             model, board, mask, mcts_policy, winner, is_teacher, score_target_B=final_score
         )
         return loss, (pol_loss, val_loss)
