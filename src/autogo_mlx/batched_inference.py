@@ -20,7 +20,7 @@ from typing import Any
 import mlx.core as mx
 import numpy as np
 
-from autogo_mlx.dataset import _one_hot_board, _compute_liberties_numpy
+from autogo_mlx.dataset import _one_hot_board, _compute_liberties_numpy, _d4_apply
 from autogo_mlx.inference import _find_ko_point_evaluator
 from autogo_mlx.model import SizeInvariantGoResNet
 
@@ -54,6 +54,7 @@ class BatchedMLXEvaluator:
         n_blocks: int = 10,
         value_hidden: int = 64,
         in_channels: int = 3,
+        d4_ensemble: bool = False,
     ) -> None:
         self.checkpoint_path = Path(checkpoint_path)
         if not self.checkpoint_path.exists():
@@ -64,6 +65,7 @@ class BatchedMLXEvaluator:
         self.batch_size = int(batch_size)
         self.batch_timeout = float(timeout_ms) / 1000.0  # seconds
         self.in_channels = int(in_channels)
+        self.d4_ensemble = d4_ensemble
 
         self.model = SizeInvariantGoResNet(
             channels=channels,
@@ -213,12 +215,14 @@ class BatchedMLXEvaluator:
         if total_items == 0:
             return
 
+        num_inputs = total_items * 8 if self.d4_ensemble else total_items
+
         boards_np = np.empty(
-            (total_items, self.board_size, self.board_size, self.in_channels),
+            (num_inputs, self.board_size, self.board_size, self.in_channels),
             dtype=np.float32,
         )
         masks_np = np.ones(
-            (total_items, self.board_size, self.board_size), dtype=np.float32
+            (num_inputs, self.board_size, self.board_size), dtype=np.float32
         )
 
         idx = 0
@@ -230,23 +234,21 @@ class BatchedMLXEvaluator:
                 if self.in_channels == 8:
                     lib_1, lib_2, lib_3, lib_4 = _compute_liberties_numpy(board)
                     ko = _find_ko_point_evaluator(board, to_play, set(legal))
-
                     one_hot = _one_hot_board(board, to_play)
-                    boards_np[idx, ..., :3] = one_hot
-                    boards_np[idx, ..., 3] = lib_1
-                    boards_np[idx, ..., 4] = lib_2
-                    boards_np[idx, ..., 5] = lib_3
-                    boards_np[idx, ..., 6] = lib_4
-                    boards_np[idx, ..., 7] = ko
+                    state_features = np.zeros((self.board_size, self.board_size, 8), dtype=np.float32)
+                    state_features[..., :3] = one_hot
+                    state_features[..., 3] = lib_1
+                    state_features[..., 4] = lib_2
+                    state_features[..., 5] = lib_3
+                    state_features[..., 6] = lib_4
+                    state_features[..., 7] = ko
                 elif self.in_channels == 18:
                     one_hot = _one_hot_board(board, to_play)
                     player_stones = one_hot[..., 1]
                     opponent_stones = one_hot[..., 2]
-
                     player_history = [player_stones]
                     opponent_history = [opponent_stones]
                     opponent = 3 - to_play
-
                     for i in range(7):
                         if history_boards is not None and i < len(history_boards) and history_boards[i] is not None:
                             h_board = history_boards[i]
@@ -257,30 +259,31 @@ class BatchedMLXEvaluator:
                             h_opponent = np.zeros((self.board_size, self.board_size), dtype=np.float32)
                         player_history.append(h_player)
                         opponent_history.append(h_opponent)
-
-                    # Channels 0-7: player history
+                    state_features = np.zeros((self.board_size, self.board_size, 18), dtype=np.float32)
                     for i in range(8):
-                        boards_np[idx, ..., i] = player_history[i]
-
-                    # Channels 8-15: opponent history
-                    for i in range(8):
-                        boards_np[idx, ..., 8 + i] = opponent_history[i]
-
-                    # Channel 16: color to play (BLACK=1)
+                        state_features[..., i] = player_history[i]
+                        state_features[..., 8 + i] = opponent_history[i]
                     color_val = 1.0 if to_play == 1 else 0.0
-                    boards_np[idx, ..., 16] = color_val
-
-                    # Channel 17: Ko indicator plane
+                    state_features[..., 16] = color_val
                     ko_plane = _find_ko_point_evaluator(board, to_play, set(legal))
-                    boards_np[idx, ..., 17] = ko_plane
+                    state_features[..., 17] = ko_plane
                 else:
-                    boards_np[idx] = _one_hot_board(board, to_play)
-                idx += 1
+                    state_features = _one_hot_board(board, to_play)
+
+                if self.d4_ensemble:
+                    for sym in range(8):
+                        feat_CHW = state_features.transpose(2, 0, 1)
+                        feat_sym_CHW = _d4_apply(feat_CHW, sym)
+                        feat_sym_HWC = feat_sym_CHW.transpose(1, 2, 0)
+                        boards_np[idx] = feat_sym_HWC
+                        idx += 1
+                else:
+                    boards_np[idx] = state_features
+                    idx += 1
 
         board_BHWC = mx.array(boards_np)
         mask_BHW = mx.array(masks_np)
 
-        # Forward pass on default device (GPU)
         policy_BA, value_B = self.model(board_BHWC, mask_BHW)
         mx.eval(policy_BA, value_B)
 
@@ -291,14 +294,43 @@ class BatchedMLXEvaluator:
         for r in batch_requests:
             req_results = []
             for legal in r.legal_actions_list:
-                logits_A = policy_np[idx]
-                legal_logits = logits_A[legal]
-                legal_logits -= legal_logits.max()
-                exp = np.exp(legal_logits)
-                probs = exp / exp.sum()
-                policy = {a: float(p) for a, p in zip(legal, probs)}
+                if self.d4_ensemble:
+                    state_value_logits = value_np[idx : idx + 8]
+                    values = 1.0 / (1.0 + np.exp(-state_value_logits))
+                    avg_value = float(np.mean(values))
 
-                value = 1.0 / (1.0 + math.exp(-value_np[idx]))
-                req_results.append((policy, value))
-                idx += 1
+                    avg_probs = np.zeros(self.n_actions, dtype=np.float64)
+                    for sym in range(8):
+                        logits = policy_np[idx + sym]
+                        logits_stable = logits - logits.max()
+                        exp_logits = np.exp(logits_stable)
+                        probs = exp_logits / exp_logits.sum()
+
+                        inv_sym = 3 if sym == 1 else (1 if sym == 3 else sym)
+                        spatial_probs = probs[:self.pass_index].reshape(self.board_size, self.board_size)
+                        spatial_probs_restored = _d4_apply(spatial_probs[None], inv_sym)[0]
+
+                        restored_probs = np.zeros(self.n_actions, dtype=np.float64)
+                        restored_probs[:self.pass_index] = spatial_probs_restored.flatten()
+                        restored_probs[self.pass_index] = probs[self.pass_index]
+
+                        avg_probs += restored_probs / 8.0
+
+                    legal_probs = avg_probs[legal]
+                    legal_probs /= legal_probs.sum()
+                    policy = {a: float(p) for a, p in zip(legal, legal_probs)}
+
+                    req_results.append((policy, avg_value))
+                    idx += 8
+                else:
+                    logits_A = policy_np[idx]
+                    legal_logits = logits_A[legal]
+                    legal_logits -= legal_logits.max()
+                    exp = np.exp(legal_logits)
+                    probs = exp / exp.sum()
+                    policy = {a: float(p) for a, p in zip(legal, probs)}
+
+                    value = 1.0 / (1.0 + math.exp(-value_np[idx]))
+                    req_results.append((policy, value))
+                    idx += 1
             r.result_future.set_result(req_results)
