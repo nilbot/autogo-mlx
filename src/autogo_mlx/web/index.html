@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Local play interface against trained AutoGo MLX reinforcement learning checkpoints.">
+    <title>AutoGo MLX Interactive Play</title>
+    <!-- Modern Typography from Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/web/style.css">
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Sidebar HUD controls -->
+        <aside class="sidebar-hud">
+            <header class="hud-header">
+                <div class="eyebrow">AUTOGO MLX</div>
+                <h1 id="app-title">Tactical Sandbox</h1>
+            </header>
+
+            <section class="hud-group" aria-labelledby="setup-heading">
+                <h2 id="setup-heading" class="hud-section-title">Session Configuration</h2>
+                
+                <div class="control-row">
+                    <label for="model-select">Checkpoint</label>
+                    <select id="model-select" class="hud-select">
+                        <option value="">Scanning checkpoints...</option>
+                    </select>
+                </div>
+
+                <div class="control-row">
+                    <label for="size-select">Board Size</label>
+                    <select id="size-select" class="hud-select">
+                        <option value="9">9 x 9 (Standard)</option>
+                    </select>
+                </div>
+
+                <div class="control-row">
+                    <label>Play As</label>
+                    <div class="btn-toggle-group">
+                        <button type="button" id="color-black-btn" class="toggle-btn active" data-color="black">Black</button>
+                        <button type="button" id="color-white-btn" class="toggle-btn" data-color="white">White</button>
+                    </div>
+                </div>
+
+                <div class="control-row">
+                    <div class="slider-label-row">
+                        <label for="sims-slider">MCTS Simulations</label>
+                        <span id="sims-val" class="mono-badge">64</span>
+                    </div>
+                    <input type="range" id="sims-slider" min="8" max="512" step="8" value="64" class="hud-slider">
+                </div>
+            </section>
+
+            <section class="hud-group" aria-labelledby="teacher-heading">
+                <div class="teacher-header-row">
+                    <h2 id="teacher-heading" class="hud-section-title">Teacher Mode</h2>
+                    <label class="switch-toggle" for="teacher-toggle" aria-label="Toggle Teacher Mode">
+                        <input type="checkbox" id="teacher-toggle" checked>
+                        <span class="switch-slider"></span>
+                    </label>
+                </div>
+                
+                <div class="teacher-options" id="teacher-options-panel">
+                    <label class="radio-row" for="mode-priors">
+                        <input type="radio" id="mode-priors" name="teacher-mode" value="priors" checked>
+                        <span class="legend-color-dot priors"></span>
+                        <span>Policy Priors (Net instinct)</span>
+                    </label>
+                    <label class="radio-row" for="mode-visits">
+                        <input type="radio" id="mode-visits" name="teacher-mode" value="visits">
+                        <span class="legend-color-dot visits"></span>
+                        <span>MCTS Search Visits</span>
+                    </label>
+                    <label class="radio-row" for="mode-q">
+                        <input type="radio" id="mode-q" name="teacher-mode" value="q">
+                        <span class="legend-color-dot qval"></span>
+                        <span>Win Probability (Q value)</span>
+                    </label>
+                </div>
+            </section>
+
+            <section class="hud-group game-actions">
+                <button type="button" id="new-game-btn" class="btn-primary">Initialize Match</button>
+                <div class="btn-row">
+                    <button type="button" id="pass-btn" class="btn-secondary">Pass</button>
+                    <button type="button" id="undo-btn" class="btn-secondary">Undo</button>
+                </div>
+            </section>
+        </aside>
+
+        <!-- Main Gameplay Canvas -->
+        <main class="game-canvas">
+            <!-- Win Probability Evaluation Bar (similar to chess engine) -->
+            <div class="eval-bar-container">
+                <div id="eval-bar-fill" class="eval-bar-fill" style="height: 50%;"></div>
+                <div id="eval-bar-text" class="eval-bar-text">50.0%</div>
+            </div>
+
+            <!-- Board & Play HUD -->
+            <div class="board-area">
+                <div id="status-panel" class="status-panel">
+                    <span class="status-indicator" id="status-dot"></span>
+                    <span id="status-text" class="status-text">Welcome to AutoGo MLX. Press 'Initialize Match' to begin.</span>
+                </div>
+
+                <div class="board-wrapper">
+                    <!-- Dynamic Go board container -->
+                    <div id="go-board-container" class="go-board-container">
+                        <!-- Grid cell blocks rendered dynamically via JS -->
+                    </div>
+                    <!-- Pass overlay notification -->
+                    <div id="pass-notification" class="pass-notification-overlay hidden">
+                        <span>BOT PASSED</span>
+                    </div>
+                </div>
+
+                <div class="score-hud">
+                    <div class="score-card">
+                        <div class="card-eyebrow">CURRENT TO PLAY</div>
+                        <div id="turn-display" class="card-value">—</div>
+                    </div>
+                    <div class="score-card">
+                        <div class="card-eyebrow">ESTIMATED SCORE</div>
+                        <div id="score-display" class="card-value">—</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Gameplay Logic Script -->
+    <script src="/web/app.js"></script>
+</body>
+</html>
