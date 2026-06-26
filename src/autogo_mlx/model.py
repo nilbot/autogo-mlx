@@ -49,11 +49,20 @@ def _kaiming_normal_fan_out_relu(shape: tuple[int, ...]) -> mx.array:
 
 
 class MaskedGroupNorm2d(nn.Module):
-    """GroupNorm computed only over the masked (real) region. NHWC layout.
+    """Group normalization computed exclusively over active (masked) board regions.
 
-    No running statistics — train/eval parity is automatic. Per-sample
-    statistics are taken across spatial+intra-group channels; sub-batches of
-    different real sizes never mix moments.
+    Layout: NHWC.
+
+    This class performs group normalization only on the non-padded coordinates
+    of the board. Since board sizes vary, sub-batches may contain different active
+    areas. We use a sample-specific mask to prevent zero-padded positions from
+    biasing the mean and variance calculations. No running statistics are tracked,
+    ensuring identical behavior during training and evaluation.
+
+    Args:
+        num_features: Total number of input channels (C).
+        num_groups: Number of groups (G) to divide the channels into. Defaults to min(32, C).
+        eps: Small constant added to the variance denominator for numerical stability.
     """
 
     def __init__(
@@ -73,16 +82,31 @@ class MaskedGroupNorm2d(nn.Module):
         self.bias = mx.zeros((num_features,))
 
     def __call__(self, x_BHWC: mx.array, mask_BHW1: mx.array) -> mx.array:
+        """Forward pass.
+
+        Args:
+            x_BHWC: Input tensor of shape [B, H, W, C].
+            mask_BHW1: Binary mask of shape [B, H, W, 1].
+
+        Returns:
+            Normalized and re-masked tensor of shape [B, H, W, C].
+        """
         B, H, W, C = x_BHWC.shape
         G = self.num_groups
         Cg = C // G
-        # Group axis: (B, H, W, G, Cg). Mask broadcasts via an extra trailing 1.
+        # Reshape to separate groups: [B, H, W, G, Cg]
         mask_BHW11 = mask_BHW1[..., None]
         x = x_BHWC.reshape(B, H, W, G, Cg) * mask_BHW11
+        
+        # Calculate denominator based on number of active spatial positions
         denom_B = mx.maximum(mask_BHW1.sum(axis=(1, 2, 3)) * Cg, 1.0)
+        
+        # Compute mean and variance only over masked regions
         mean_BG = x.sum(axis=(1, 2, 4)) / denom_B[:, None]
         centered = (x - mean_BG[:, None, None, :, None]) * mask_BHW11
         var_BG = (centered * centered).sum(axis=(1, 2, 4)) / denom_B[:, None]
+        
+        # Standardize and scale/shift
         inv_std_BG = mx.rsqrt(var_BG + self.eps)
         y = centered * inv_std_BG[:, None, None, :, None]
         y = y.reshape(B, H, W, C) * self.weight + self.bias
@@ -90,7 +114,13 @@ class MaskedGroupNorm2d(nn.Module):
 
 
 class MaskedSEBlock(nn.Module):
-    """Squeeze-Excite with masked global-avg-pool. NHWC layout."""
+    """Squeeze-and-Excitation block with masked global average pooling.
+
+    Layout: NHWC.
+
+    Squeezes spatial features into channel descriptors using a masked global
+    average pool, applies a bottleneck MLP, and scales the input channels.
+    """
 
     def __init__(self, channels: int, reduction: int = 8) -> None:
         super().__init__()
@@ -99,18 +129,29 @@ class MaskedSEBlock(nn.Module):
         self.fc2 = nn.Linear(hidden, channels)
 
     def __call__(self, x_BHWC: mx.array, mask_BHW1: mx.array) -> mx.array:
+        """Forward pass.
+
+        Args:
+            x_BHWC: Input features of shape [B, H, W, C].
+            mask_BHW1: Binary mask of shape [B, H, W, 1].
+
+        Returns:
+            Channel-scaled tensor of shape [B, H, W, C].
+        """
         spatial_B = mx.maximum(mask_BHW1.sum(axis=(1, 2, 3)), 1.0)
+        # Average only over valid spatial coordinates
         pooled_BC = (x_BHWC * mask_BHW1).sum(axis=(1, 2)) / spatial_B[:, None]
         gate_BC = mx.sigmoid(self.fc2(nn.relu(self.fc1(pooled_BC))))
         return x_BHWC * gate_BC[:, None, None, :]
 
 
 class MaskedResBlock(nn.Module):
-    """Two 3x3 convs + masked norm + ReLU residual block. NHWC throughout.
+    """Residual block consisting of two 3x3 convolutions, group norms, and ReLU.
 
-    Re-masks after each conv so the excess region stays exactly zero —
-    convolutions on the real/excess boundary see padded zeros on the excess
-    side, which is what we want.
+    Layout: NHWC.
+
+    Applies convolutions and re-masks intermediate tensors to prevent the zero-padded
+    regions from accumulating non-zero activation values.
     """
 
     def __init__(
@@ -128,6 +169,15 @@ class MaskedResBlock(nn.Module):
         self.se = MaskedSEBlock(channels, reduction=se_reduction) if use_se else None
 
     def __call__(self, x_BHWC: mx.array, mask_BHW1: mx.array) -> mx.array:
+        """Forward pass.
+
+        Args:
+            x_BHWC: Input features of shape [B, H, W, C].
+            mask_BHW1: Binary mask of shape [B, H, W, 1].
+
+        Returns:
+            Residual-connected tensor of shape [B, H, W, C].
+        """
         residual = x_BHWC
         out = self.conv1(x_BHWC) * mask_BHW1
         out = nn.relu(self.bn1(out, mask_BHW1))
@@ -139,23 +189,27 @@ class MaskedResBlock(nn.Module):
 
 
 class SizeInvariantGoResNet(nn.Module):
-    """Fully convolutional Go net for variable-sized boards via zero-pad + mask.
+    """Size-invariant Go ResNet with decoupled heads and spatial mask propagation.
 
-    The input is one-hot ``(B, H, W, 3)`` (channels: empty / self / opponent)
-    with the excess region pre-zeroed by the dataset (otherwise channel-0
-    'empty' reads as solid 'empty' over padded cells and leaks into neighbour
-    convolutions). The mask is ``(B, H, W)`` with 1 on real positions and 0
-    on padding.
+    This network handles arbitrary board sizes by zero-padding them to a common
+    spatial grid. A binary spatial mask is propagated throughout the network to zero
+    out features outside the legal board region, preventing padding cells from polluting
+    convolutions or normalization statistics.
 
-    Returned values:
-        policy_BA: logits over H*W+1 actions; excess positions get -1e9 so
-            softmax collapses them. Pass is at index ``H*W``.
-        value_B: raw value logit. Apply sigmoid externally to get win prob.
+    The model decoupled evaluation heads from the policy representation trunk
+    using `mx.stop_gradient` to prevent multi-task gradient interference.
 
-    Best config from the upstream autoresearch sweep on
-    ``experiments/2026-04-22_00-15-size-invariant-resnet`` (run 11,
-    val_loss=3.71): ``channels=128, n_blocks=10, value_hidden=64`` — about 3M
-    params with GroupNorm, similar with BN.
+    Architecture summary:
+      - Shared Feature Trunk: 10 MaskedResBlocks
+      - Policy Head: Conv2d(1x1) + Linear Readout (H*W + 1 logits)
+      - Decoupled Head Trunk: mx.stop_gradient + 2 MaskedResBlocks
+        - Value Head: Linear + Linear (1 scalar win probability logit)
+        - Score Head: Linear + Linear (1 scalar score margin logit)
+        - Ownership Head: Conv2d(3x3) + GroupNorm + Conv2d(1x1) + Tanh (H*W ownership map)
+
+    Inputs:
+      - board_BHWC: [B, H, W, 3] board representation (empty, self, opponent).
+      - mask_BHW: [B, H, W] float mask (1.0 for valid cells, 0.0 for padding).
     """
 
     def __init__(
@@ -170,8 +224,8 @@ class SizeInvariantGoResNet(nn.Module):
     ) -> None:
         super().__init__()
         if norm_type != "gn":
-            # MaskedBatchNorm2d is intentionally not ported in P1a; revisit at
-            # Phase 9 parity if BN running stats matter for matching upstream.
+            # MaskedBatchNorm2d is intentionally not supported to guarantee train/eval parity
+            # on Apple Silicon using MLX.
             raise NotImplementedError(
                 f"only norm_type='gn' is supported in the MLX port; got {norm_type!r}"
             )
@@ -194,6 +248,7 @@ class SizeInvariantGoResNet(nn.Module):
         ]
 
         # Phase 2 Option A: Decoupled independent ResNet blocks for the evaluation heads
+        # Detaches evaluation gradients from the policy trunk to avoid representation conflict.
         self.value_blocks = [
             MaskedResBlock(
                 channels, norm_cls=norm_cls, use_se=use_se, se_reduction=se_reduction
@@ -208,7 +263,7 @@ class SizeInvariantGoResNet(nn.Module):
         self.score_fc1 = nn.Linear(channels, value_hidden)
         self.score_fc2 = nn.Linear(value_hidden, 1)
 
-        # Phase 2: Dense Spatial Ownership Head
+        # Dense Spatial Ownership Head: outputs spatial margins in [-1.0, 1.0]
         self.ownership_conv1 = nn.Conv2d(channels, 32, kernel_size=3, padding=1, bias=False)
         self.ownership_bn = norm_cls(32)
         self.ownership_conv2 = nn.Conv2d(32, 1, kernel_size=1, bias=True)
@@ -216,6 +271,7 @@ class SizeInvariantGoResNet(nn.Module):
         self._init_weights()
 
     def _init_weights(self) -> None:
+        """Initializes weights using Kaiming normal with fan-out mode."""
         def init_module(_name: str, m: nn.Module) -> None:
             if isinstance(m, nn.Conv2d):
                 m.weight = _kaiming_normal_fan_out_relu(m.weight.shape)
@@ -230,7 +286,8 @@ class SizeInvariantGoResNet(nn.Module):
                 m.bias = mx.zeros(m.bias.shape)
 
         self.apply_to_modules(init_module)
-        # Zero-init readouts so initial policy is uniform and value logit = 0.
+        # Zero-initialize the final readout heads so initial policy priors are uniform
+        # and value/score logits begin close to 0.0.
         self.policy_conv.weight = mx.zeros(self.policy_conv.weight.shape)
         self.policy_conv.bias = mx.zeros(self.policy_conv.bias.shape)
         self.pass_fc.weight = mx.zeros(self.pass_fc.weight.shape)
@@ -253,31 +310,50 @@ class SizeInvariantGoResNet(nn.Module):
         | tuple[mx.array, mx.array, mx.array]
         | tuple[mx.array, mx.array, mx.array, mx.array]
     ):
+        """Forward pass through the network.
+
+        Args:
+            board_BHWC: One-hot encoded board of shape [B, H, W, 3].
+            mask_BHW: Binary mask of shape [B, H, W] (1 for active, 0 for padding).
+            return_score: If True, returns predicted score margin.
+            return_ownership: If True, returns dense spatial ownership map.
+
+        Returns:
+            Depending on options, returns:
+              - policy_BA [B, H*W+1]: policy logits (last element is pass).
+              - value_B [B]: value logits (apply sigmoid externally).
+              - score_B [B]: predicted final score margins.
+              - ownership_map_BHW [B, H, W]: ownership map in [-1.0, 1.0].
+        """
         B, H, W, _ = board_BHWC.shape
         if mask_BHW is None:
             mask_BHW1 = mx.ones((B, H, W, 1), dtype=board_BHWC.dtype)
         else:
             mask_BHW1 = mask_BHW.astype(board_BHWC.dtype)[..., None]
 
-        # Re-mask the one-hot input — channel-0 ('empty') must be zero outside
-        # the real region, else excess cells read as solid 'empty' and leak.
+        # 1. Input preprocessing: Ensure channels are zeroed in padded areas
         x = board_BHWC * mask_BHW1
         x = self.input_conv(x) * mask_BHW1
         x = nn.relu(self.input_bn(x, mask_BHW1))
+
+        # 2. Shared feature trunk
         for block in self.blocks:
             x = block(x, mask_BHW1)
 
+        # 3. Policy Head Readout
         spatial_B = mx.maximum(mask_BHW1.sum(axis=(1, 2, 3)), 1.0)
         pooled_BC = (x * mask_BHW1).sum(axis=(1, 2)) / spatial_B[:, None]
 
         p_BHW1 = self.policy_conv(x) * mask_BHW1
         pos_logits_BL = p_BHW1.reshape(B, -1)
         mask_BL = mask_BHW1.reshape(B, -1)
+        # Suppress illegal/padded board coordinates with high negative logits
         pos_logits_BL = pos_logits_BL + (1.0 - mask_BL) * (-1e9)
         pass_logit_B1 = self.pass_fc(pooled_BC)
         policy_BA = mx.concatenate([pos_logits_BL, pass_logit_B1], axis=1)
 
-        # Decouple the evaluation heads from the policy representation trunk
+        # 4. Decoupled Evaluation Head Trunk
+        # stop_gradient blocks value gradients from propagating back into the shared policy trunk.
         x_detached = mx.stop_gradient(x)
         x_eval = x_detached
         for block in self.value_blocks:
@@ -285,9 +361,11 @@ class SizeInvariantGoResNet(nn.Module):
 
         pooled_value_BC = (x_eval * mask_BHW1).sum(axis=(1, 2)) / spatial_B[:, None]
 
+        # 5. Value Head Readout
         v = nn.relu(self.value_fc1(pooled_value_BC))
         value_B = self.value_fc2(v).squeeze(-1)
 
+        # Optional Score and Ownership Heads
         if return_score:
             s = nn.relu(self.score_fc1(pooled_value_BC))
             score_B = self.score_fc2(s).squeeze(-1)
@@ -296,7 +374,6 @@ class SizeInvariantGoResNet(nn.Module):
                 own = self.ownership_conv1(x_eval) * mask_BHW1
                 own = nn.relu(self.ownership_bn(own, mask_BHW1))
                 own_logits_BHW = self.ownership_conv2(own).squeeze(-1)
-                # Mask out excess region to be safe
                 if mask_BHW is not None:
                     own_logits_BHW = own_logits_BHW * mask_BHW
                 ownership_map_BHW = mx.tanh(own_logits_BHW)
@@ -308,7 +385,6 @@ class SizeInvariantGoResNet(nn.Module):
             own = self.ownership_conv1(x_eval) * mask_BHW1
             own = nn.relu(self.ownership_bn(own, mask_BHW1))
             own_logits_BHW = self.ownership_conv2(own).squeeze(-1)
-            # Mask out excess region to be safe
             if mask_BHW is not None:
                 own_logits_BHW = own_logits_BHW * mask_BHW
             ownership_map_BHW = mx.tanh(own_logits_BHW)

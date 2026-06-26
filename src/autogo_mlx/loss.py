@@ -1,12 +1,8 @@
-"""Phase 2a — dense MCTS-target policy CE + value BCE loss + spatial ownership loss.
+"""Loss functions for training the Go models.
 
-Mirrors :py:meth:`SizeInvariantGoResNet.compute_dense_loss` in the upstream
-PyTorch reference (``third_party/autogo/src/alpha_go/model.py:669``). The
-policy term is a per-sample cross-entropy against the (already-normalized)
-MCTS visit distribution — including the pass action at index ``H*W`` — and is
-averaged over teacher samples only via ``is_teacher_B``. The value term is a
-binary cross-entropy from the raw value logit against a ``{0, 1}``
-self-perspective winner label, averaged across the full batch.
+Provides compute_dense_loss which combines policy cross-entropy, value binary
+cross-entropy, score regression MSE, and spatial ownership MSE into a single
+joint loss optimized via backpropagation.
 """
 
 from __future__ import annotations
@@ -28,25 +24,40 @@ def compute_dense_loss(
     ownership_target_BHW: mx.array | None = None,
     has_ownership_target_B: mx.array | None = None,
 ) -> tuple[mx.array, mx.array, mx.array, mx.array]:
-    """Dense-target policy CE + value BCE + auxiliary score MSE + spatial ownership MSE; returns (total, policy, value, ownership).
+    """Computes the joint multi-task loss for training the model.
+
+    The joint loss function is formulated as:
+      L_total = L_policy + L_value + 0.01 * L_score + 0.1 * L_ownership
+
+    Where:
+      - L_policy: Cross-entropy between the predicted policy logits and the MCTS
+        visit distribution, supervised only on teacher-generated states.
+      - L_value: Binary cross-entropy with logits between the predicted value
+        and the self-perspective game winner.
+      - L_score: Mean squared error of the predicted game score margin.
+      - L_ownership: Mean squared error of the dense spatial ownership prediction
+        against the Tromp-Taylor score map, restricted to double-pass game completions.
 
     Args:
-        model: ``SizeInvariantGoResNet`` (or any module with the same
-            ``(board, mask) -> (policy_BC, value_B)`` contract).
-        board_BHWC: one-hot board ``(B, H, W, 3)`` — empty / self / opponent.
-            Excess (padded) cells must already be zero across all channels.
-        mask_BHW: ``(B, H, W)`` 0/1 float (or bool) mask; ``None`` means
-            full-board everywhere. The model uses it to gate norms and to
-            push excess action logits to ``-1e9``.
-        mcts_policy_BC: ``(B, H*W+1)`` non-negative target distribution,
-            already normalised by the dataset.
-        winner_B: ``(B,)`` ``{0, 1}`` self-perspective win label (any
-            numeric dtype; coerced to the value-logit dtype).
-        is_teacher_B: ``(B,)`` 0/1 mask, 1 where the policy target was
-            produced by an MCTS teacher (so worth supervising against).
-        score_target_B: ``(B,)`` self-perspective final score margin (float).
-        ownership_target_BHW: ``(B, H, W)`` spatial target territory margin (-1.0 to +1.0).
-        has_ownership_target_B: ``(B,)`` 0/1 mask indicating if sample has valid ownership target (double-pass ending).
+        model: SizeInvariantGoResNet model instance.
+        board_BHWC: One-hot encoded board tensor of shape [B, H, W, 3] representing
+          empty, self, and opponent channels.
+        mask_BHW: 0/1 binary float mask of shape [B, H, W] indicating valid board cells.
+          Positions outside the active board are zero.
+        mcts_policy_BC: MCTS visit target probability distribution of shape [B, H*W+1].
+        winner_B: Self-perspective binary win labels of shape [B] (1.0 for win, 0.0 for loss).
+        is_teacher_B: 0/1 binary indicator of shape [B] identifying states generated
+          by the search-tree teacher to supervise the policy.
+        score_target_B: Self-perspective score difference of shape [B].
+        ownership_target_BHW: Spatial ownership targets of shape [B, H, W] with values
+          in [-1, 1] representing board ownership (-1 for White, +1 for Black).
+        has_ownership_target_B: 0/1 binary indicator of shape [B] denoting whether
+          the sample came from a game that completed with a double-pass (and thus
+          has a valid final Tromp-Taylor ownership label).
+
+    Returns:
+        A tuple of (total_loss, policy_loss, value_loss, ownership_loss), where
+        each element is a scalar MLX array.
     """
     if ownership_target_BHW is not None:
         if score_target_B is not None:
@@ -113,3 +124,4 @@ def compute_dense_loss(
     total_loss = policy_loss + value_loss + 0.01 * score_loss + 0.1 * ownership_loss
 
     return total_loss, policy_loss, value_loss, ownership_loss
+

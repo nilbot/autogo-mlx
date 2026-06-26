@@ -117,15 +117,21 @@ def _d4_policy(policy_BA: np.ndarray, sym: int, board_size: int) -> np.ndarray:
 
 def compute_tromp_taylor_ownership(board_HW: np.ndarray) -> np.ndarray:
     """Computes the final Tromp-Taylor ownership map for a given board state.
-    
-    1. All stones of player X are owned by X.
-    2. Empty regions surrounded exclusively by player X are owned by X.
-    3. Empty regions surrounded by both players or neither are neutral (0).
-    
-    Returns a grid (H, W) where:
-    +1.0 = BLACK territory/stones
-    -1.0 = WHITE territory/stones
-     0.0 = Neutral / Dame / Seki
+
+    The Tromp-Taylor score determines ownership according to the following logic:
+      1. All stones of player X on the board are owned by X.
+      2. Any empty region that is surrounded exclusively by stones of player X is owned by X.
+      3. Any empty region surrounded by stones of both players (or neither) is neutral (0.0).
+
+    Args:
+        board_HW: Integer board array of shape [H, W] containing absolute state values:
+          0 = Empty, 1 = Black, 2 = White.
+
+    Returns:
+        A float32 board array of shape [H, W] with elements in {-1.0, 0.0, 1.0}:
+          +1.0 = Owned by Black (Black stones or territory surrounded only by Black)
+          -1.0 = Owned by White (White stones or territory surrounded only by White)
+           0.0 = Neutral / Dame / Seki
     """
     h, w = board_HW.shape
     ownership = np.zeros((h, w), dtype=np.float32)
