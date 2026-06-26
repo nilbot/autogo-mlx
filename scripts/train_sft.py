@@ -122,7 +122,7 @@ def evaluate_validation(
 
 def main() -> None:
     """CLI entrypoint."""
-    parser = argparse.ArgumentParser(description="Mugo SFT Model Trainer")
+    parser = argparse.ArgumentParser(description="AutoGo-MLX SFT Model Trainer")
     parser.add_argument(
         "--dataset-dir",
         type=str,

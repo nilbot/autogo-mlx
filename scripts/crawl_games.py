@@ -71,7 +71,15 @@ def resolve_player_id(client: httpx.Client, username: str) -> int | None:
                 if r.get("username", "").lower() == username.lower():
                     return int(r["id"])
             break
-        except httpx.HTTPError:
+        except httpx.HTTPError as e:
+            # We fail gracefully here and retry, returning None if all attempts fail.
+            # If all target usernames fail to resolve, the main crawl loop will catch
+            # the empty player_ids list and report a hard failure.
+            print(
+                f"Warning: HTTP error resolving player '{username}' on attempt {attempt + 1}: {e}",
+                file=sys.stderr,
+                flush=True,
+            )
             time.sleep((attempt + 1) * 1.0)
             
     return None
