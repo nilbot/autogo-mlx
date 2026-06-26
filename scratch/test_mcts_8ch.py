@@ -15,7 +15,8 @@ def main():
     board = GoBoard(9)
     
     # Setup evaluator using the final 8ch model iter3
-    checkpoint_path = "/Users/nilbot/playground/autogo-mlx/experiments/001_train_from_scratch/checkpoints/iter3.safetensors"
+    repo_root = Path(__file__).resolve().parents[1]
+    checkpoint_path = str(repo_root / "experiments/001_train_from_scratch/checkpoints/iter3.safetensors")
     evaluator = BatchedMLXEvaluator(
         checkpoint_path=checkpoint_path,
         board_size=9,
