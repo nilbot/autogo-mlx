@@ -77,6 +77,7 @@ class MLXEvaluator:
         value_hidden: int = 64,
         in_channels: int = 3,
         d4_ensemble: bool = False,
+        sibling_checkpoint_path: str | Path | None = None,
     ) -> None:
         self.checkpoint_path = Path(checkpoint_path)
         if not self.checkpoint_path.exists():
@@ -96,6 +97,22 @@ class MLXEvaluator:
         self.model.load_weights(str(self.checkpoint_path), strict=False)
         self.model.eval()
         mx.eval(self.model.parameters())
+
+        self.sibling_checkpoint_path = Path(sibling_checkpoint_path) if sibling_checkpoint_path is not None else None
+        if self.sibling_checkpoint_path is not None:
+            if not self.sibling_checkpoint_path.exists():
+                raise FileNotFoundError(self.sibling_checkpoint_path)
+            self.sibling_model = SizeInvariantGoResNet(
+                channels=channels,
+                n_blocks=n_blocks,
+                value_hidden=value_hidden,
+                in_channels=in_channels,
+            )
+            self.sibling_model.load_weights(str(self.sibling_checkpoint_path), strict=False)
+            self.sibling_model.eval()
+            mx.eval(self.sibling_model.parameters())
+        else:
+            self.sibling_model = None
 
     def evaluate(
         self,
@@ -184,31 +201,66 @@ class MLXEvaluator:
 
             board_BHWC = mx.array(np.stack(symmetrical_inputs))
             mask_BHW = mx.ones((8, self.board_size, self.board_size))
-            policy_BA, value_B = self.model(board_BHWC, mask_BHW)
-            mx.eval(policy_BA, value_B)
 
-            policy_np = np.array(policy_BA, dtype=np.float64)
-            value_np = np.array(value_B, dtype=np.float64)
+            if self.sibling_model is not None:
+                policy_BA, value_B = self.model(board_BHWC, mask_BHW)
+                sib_policy_BA, sib_value_B = self.sibling_model(board_BHWC, mask_BHW)
+                mx.eval(policy_BA, value_B, sib_policy_BA, sib_value_B)
 
-            values = 1.0 / (1.0 + np.exp(-value_np))
-            avg_value = float(np.mean(values))
+                policy_np = np.array(policy_BA, dtype=np.float64)
+                value_np = np.array(value_B, dtype=np.float64)
+                sib_policy_np = np.array(sib_policy_BA, dtype=np.float64)
+                sib_value_np = np.array(sib_value_B, dtype=np.float64)
 
-            avg_probs = np.zeros(self.n_actions, dtype=np.float64)
-            for sym in range(8):
-                logits = policy_np[sym]
-                logits_stable = logits - logits.max()
-                exp_logits = np.exp(logits_stable)
-                probs = exp_logits / exp_logits.sum()
+                values = 1.0 / (1.0 + np.exp(-value_np))
+                sib_values = 1.0 / (1.0 + np.exp(-sib_value_np))
+                avg_value = float((np.mean(values) + np.mean(sib_values)) / 2.0)
 
-                inv_sym = 3 if sym == 1 else (1 if sym == 3 else sym)
-                spatial_probs = probs[:self.pass_index].reshape(self.board_size, self.board_size)
-                spatial_probs_restored = _d4_apply(spatial_probs[None], inv_sym)[0]
+                avg_probs = np.zeros(self.n_actions, dtype=np.float64)
+                for sym in range(8):
+                    logits_main = policy_np[sym]
+                    logits_sib = sib_policy_np[sym]
+                    logits_ensemble = (logits_main + logits_sib) / 2.0
 
-                restored_probs = np.zeros(self.n_actions, dtype=np.float64)
-                restored_probs[:self.pass_index] = spatial_probs_restored.flatten()
-                restored_probs[self.pass_index] = probs[self.pass_index]
+                    logits_stable = logits_ensemble - logits_ensemble.max()
+                    exp_logits = np.exp(logits_stable)
+                    probs = exp_logits / exp_logits.sum()
 
-                avg_probs += restored_probs / 8.0
+                    inv_sym = 3 if sym == 1 else (1 if sym == 3 else sym)
+                    spatial_probs = probs[:self.pass_index].reshape(self.board_size, self.board_size)
+                    spatial_probs_restored = _d4_apply(spatial_probs[None], inv_sym)[0]
+
+                    restored_probs = np.zeros(self.n_actions, dtype=np.float64)
+                    restored_probs[:self.pass_index] = spatial_probs_restored.flatten()
+                    restored_probs[self.pass_index] = probs[self.pass_index]
+
+                    avg_probs += restored_probs / 8.0
+            else:
+                policy_BA, value_B = self.model(board_BHWC, mask_BHW)
+                mx.eval(policy_BA, value_B)
+
+                policy_np = np.array(policy_BA, dtype=np.float64)
+                value_np = np.array(value_B, dtype=np.float64)
+
+                values = 1.0 / (1.0 + np.exp(-value_np))
+                avg_value = float(np.mean(values))
+
+                avg_probs = np.zeros(self.n_actions, dtype=np.float64)
+                for sym in range(8):
+                    logits = policy_np[sym]
+                    logits_stable = logits - logits.max()
+                    exp_logits = np.exp(logits_stable)
+                    probs = exp_logits / exp_logits.sum()
+
+                    inv_sym = 3 if sym == 1 else (1 if sym == 3 else sym)
+                    spatial_probs = probs[:self.pass_index].reshape(self.board_size, self.board_size)
+                    spatial_probs_restored = _d4_apply(spatial_probs[None], inv_sym)[0]
+
+                    restored_probs = np.zeros(self.n_actions, dtype=np.float64)
+                    restored_probs[:self.pass_index] = spatial_probs_restored.flatten()
+                    restored_probs[self.pass_index] = probs[self.pass_index]
+
+                    avg_probs += restored_probs / 8.0
 
             legal_probs = avg_probs[legal]
             legal_probs /= legal_probs.sum()
@@ -269,15 +321,36 @@ class MLXEvaluator:
                 board_BHWC = mx.array(_one_hot_board(board_HW, to_play)[None])
 
             mask_BHW = mx.ones((1, self.board_size, self.board_size))
-            policy_BA, value_B = self.model(board_BHWC, mask_BHW)
-            mx.eval(policy_BA, value_B)
 
-            logits_A = np.array(policy_BA[0], dtype=np.float64)
-            legal_logits = logits_A[legal]
-            legal_logits -= legal_logits.max()
-            exp = np.exp(legal_logits)
-            probs = exp / exp.sum()
-            policy = {a: float(p) for a, p in zip(legal, probs)}
+            if self.sibling_model is not None:
+                policy_BA, value_B = self.model(board_BHWC, mask_BHW)
+                sib_policy_BA, sib_value_B = self.sibling_model(board_BHWC, mask_BHW)
+                mx.eval(policy_BA, value_B, sib_policy_BA, sib_value_B)
 
-            value = 1.0 / (1.0 + math.exp(-float(value_B[0])))
-            return policy, value
+                logits_main = np.array(policy_BA[0], dtype=np.float64)
+                logits_sib = np.array(sib_policy_BA[0], dtype=np.float64)
+                logits_ensemble = (logits_main + logits_sib) / 2.0
+
+                legal_logits = logits_ensemble[legal]
+                legal_logits -= legal_logits.max()
+                exp = np.exp(legal_logits)
+                probs = exp / exp.sum()
+                policy = {a: float(p) for a, p in zip(legal, probs)}
+
+                value_main = 1.0 / (1.0 + math.exp(-float(value_B[0])))
+                value_sib = 1.0 / (1.0 + math.exp(-float(sib_value_B[0])))
+                avg_value = (value_main + value_sib) / 2.0
+                return policy, avg_value
+            else:
+                policy_BA, value_B = self.model(board_BHWC, mask_BHW)
+                mx.eval(policy_BA, value_B)
+
+                logits_A = np.array(policy_BA[0], dtype=np.float64)
+                legal_logits = logits_A[legal]
+                legal_logits -= legal_logits.max()
+                exp = np.exp(legal_logits)
+                probs = exp / exp.sum()
+                policy = {a: float(p) for a, p in zip(legal, probs)}
+
+                value = 1.0 / (1.0 + math.exp(-float(value_B[0])))
+                return policy, value
