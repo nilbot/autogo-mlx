@@ -9,12 +9,22 @@ This skill guides the agent through training SizeInvariantGoResNet models on hum
 
 ---
 
-## 1. Token Conservation & Batching Policy
+## 1. Time Budgeting, Token Conservation & Batching Policy
 
-SFT training and evaluation takes significant wall-clock time (up to 5 hours). To minimize token consumption and LLM API cost:
+SFT training and evaluation takes significant wall-clock time. To keep the entire process under our **5-hour execution window** and minimize token consumption and LLM API cost (aiming for **fewer than 10 complex LLM calls** per run):
+
+* **Prerequisite Time-Gauge Experiment**:
+  Before running the main training pipeline, the agent must execute a brief test run (e.g. 10 steps of training, 1 step of validation, and 2 tournament games) to measure:
+  * Training step latency ($T_{\text{step}}$, in seconds/step).
+  * Validation batch latency ($T_{\text{val}}$, in seconds/batch).
+  * MCTS game latency ($T_{\text{game}}$, in seconds/game per simulation budget).
+* **Dynamic Parameter Scaling**:
+  Use the measured latencies to calculate the projected time:
+  $$\text{Time}_{\text{total}} = (\text{Steps} \times T_{\text{step}}) + (N_{\text{val}} \times T_{\text{val}}) + (N_{\text{games}} \times T_{\text{game}})$$
+  Scale the training steps, validation frequency, and tournament match sizes so that the total time remains comfortably under 4.5 hours (leaving a 10% safety buffer).
 * **No In-Flight LLM Polling**: Do not loop or check training logs periodically using LLM turns. Run all scripts in a single, sequential batch.
 * **Deterministic Execution**: Let the terminal execute the workflow. Run tools like `schedule` to pause execution, and rely on system callbacks or notifications.
-* **Single Review Step**: Gather all metrics (losses, validation accuracies, tournament matrices, Elo values) at the end, and run a single audit/reporting pass. Keep total LLM calls under 10 within any 5-hour training window.
+* **Single Review Step**: Gather all metrics (losses, validation accuracies, tournament matrices, Elo values) at the end, and run a single audit/reporting pass. Keep total LLM calls under 10 within the 5-hour training window.
 
 ---
 
@@ -23,7 +33,7 @@ SFT training and evaluation takes significant wall-clock time (up to 5 hours). T
 Before running any script, perform these deterministic checks:
 1. **Network Connectivity**: Confirm internet access is online to reach OGS APIs (e.g. `online-go.com/api/v1/`).
 2. **Disk space & Path writable**: Ensure `~/models/autogo-mlx/` is writable and there is sufficient disk space for the output `.safetensors` checkpoints.
-3. **Hyperparameter Check**: Confirm SFT hyperparameters (learning rate, Cosine Annealing, batch size) are specified correctly for the target board size (9x9 or 19x19) and Elo bracket.
+3. **Gauge Check**: Run the prerequisite time-gauge experiment and compute the scaled pipeline parameters.
 
 ---
 
