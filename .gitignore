@@ -20,6 +20,7 @@ dist/
 *.npz
 *.npy
 *.safetensors
+data/
 checkpoints/
 experiments/*/bootstrap_sgf/
 experiments/*/bootstrap_npz/
