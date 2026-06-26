@@ -89,3 +89,46 @@ def test_single_and_batched_inference_parity(dummy_checkpoint: Path) -> None:
                 )
     finally:
         batched_eval.close()
+
+
+def test_d4_ensemble_symmetries(dummy_checkpoint: Path) -> None:
+    board_size = 9
+    single_eval = MLXEvaluator(dummy_checkpoint, board_size, d4_ensemble=True)
+    batched_eval = BatchedMLXEvaluator(
+        dummy_checkpoint, board_size, batch_size=16, timeout_ms=2.0, d4_ensemble=True
+    )
+
+    try:
+        board_HW = np.zeros((board_size, board_size), dtype=np.int8)
+        to_play = 1
+        legal_actions = list(range(board_size * board_size + 1))
+
+        policy_s, value_s = single_eval.evaluate(board_HW, to_play, legal_actions)
+        policy_b, value_b = batched_eval.evaluate(board_HW, to_play, legal_actions)
+
+        # 1. Assert unbatched vs batched parity
+        assert abs(value_s - value_b) < 1e-5
+        for action in policy_s:
+            assert abs(policy_s[action] - policy_b[action]) < 1e-5
+
+        # 2. Assert perfect symmetry in the outputs
+        # Corners: (0,0), (0,8), (8,0), (8,8)
+        c1 = policy_s[0 * 9 + 0]
+        c2 = policy_s[0 * 9 + 8]
+        c3 = policy_s[8 * 9 + 0]
+        c4 = policy_s[8 * 9 + 8]
+        assert abs(c1 - c2) < 1e-6
+        assert abs(c1 - c3) < 1e-6
+        assert abs(c1 - c4) < 1e-6
+
+        # Star points: (2,2), (2,6), (6,2), (6,6)
+        s1 = policy_s[2 * 9 + 2]
+        s2 = policy_s[2 * 9 + 6]
+        s3 = policy_s[6 * 9 + 2]
+        s4 = policy_s[6 * 9 + 6]
+        assert abs(s1 - s2) < 1e-6
+        assert abs(s1 - s3) < 1e-6
+        assert abs(s1 - s4) < 1e-6
+    finally:
+        batched_eval.close()
+
