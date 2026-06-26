@@ -34,6 +34,7 @@ class NewGameRequest(BaseModel):
     board_size: int = 9
     color: str = "black"
     n_simulations: int = 64
+    ensemble_mode: str = "d4_sibling"
 
 
 class MugoGame:
@@ -44,12 +45,14 @@ class MugoGame:
         human_color: int,
         checkpoint_path: Path,
         n_simulations: int = 64,
+        ensemble_mode: str = "d4_sibling",
     ):
         self.game_id = game_id
         self.size = size
         self.human_color = human_color  # 1 for BLACK, 2 for WHITE
         self.checkpoint_path = checkpoint_path
         self.n_simulations = n_simulations
+        self.ensemble_mode = ensemble_mode
 
         self.board = GoBoard(size)
         self.move_history: List[
@@ -61,10 +64,27 @@ class MugoGame:
 
         # Load the MLX evaluator
         self.in_channels = self._detect_channels(checkpoint_path)
+
+        # Sibling detection
+        sibling_path = None
+        if "sibling" in ensemble_mode:
+            candidate_sibling = checkpoint_path.parent / (checkpoint_path.stem + "_sibling" + checkpoint_path.suffix)
+            if candidate_sibling.exists():
+                sibling_path = candidate_sibling
+                print(f"[{self.game_id}] Detected sibling checkpoint: {sibling_path.name}")
+            else:
+                print(
+                    f"[{self.game_id}] Warning: sibling checkpoint not found at {candidate_sibling}. "
+                    f"Falling back to baseline single-model mode."
+                )
+
+        d4_enabled = "d4" in ensemble_mode
         self.evaluator = MLXEvaluator(
             checkpoint_path=checkpoint_path,
             board_size=size,
             in_channels=self.in_channels,
+            d4_ensemble=d4_enabled,
+            sibling_checkpoint_path=sibling_path,
         )
 
     def _detect_channels(self, checkpoint_path: Path) -> int:
@@ -273,6 +293,7 @@ async def new_game(req: NewGameRequest) -> dict:
         human_color=human_color,
         checkpoint_path=checkpoint_path,
         n_simulations=req.n_simulations,
+        ensemble_mode=req.ensemble_mode,
     )
     games[game_id] = game
 

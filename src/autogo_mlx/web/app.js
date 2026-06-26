@@ -15,6 +15,7 @@ let gameState = {
 
 // DOM References
 const modelSelect = document.getElementById("model-select");
+const ensembleSelect = document.getElementById("ensemble-select");
 const sizeSelect = document.getElementById("size-select");
 const blackBtn = document.getElementById("color-black-btn");
 const whiteBtn = document.getElementById("color-white-btn");
@@ -131,7 +132,8 @@ async function initializeGame() {
                 model_name: model,
                 board_size: parseInt(sizeSelect.value),
                 color: gameState.humanColor === 1 ? "black" : "white",
-                n_simulations: parseInt(simsSlider.value)
+                n_simulations: parseInt(simsSlider.value),
+                ensemble_mode: ensembleSelect.value
             })
         });
         
